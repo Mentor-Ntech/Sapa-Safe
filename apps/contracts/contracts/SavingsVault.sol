@@ -189,11 +189,14 @@ contract SavingsVault is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     }
     
     /**
-     * @dev Emergency withdrawal (owner only)
+     * @dev Emergency withdrawal (owner only) - can only withdraw if vault is compromised
      */
     function emergencyWithdraw() external onlyOwner vaultActive nonReentrant {
         uint256 balance = IERC20(vault.token).balanceOf(address(this));
         require(balance > 0, "No balance to withdraw");
+        
+        // Only allow emergency withdrawal if vault is in an invalid state
+        require(vault.status == VaultStatus.LOCKED && !vault.isActive, "Vault not in emergency state");
         
         vault.isActive = false;
         

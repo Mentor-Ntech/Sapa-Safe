@@ -241,12 +241,12 @@ contract VaultFactory is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         // Get amount before withdrawal
         uint256 amount = vault.getVaultBalance();
         
-        // Perform withdrawal
-        vault.withdrawCompleted();
-        
-        // Update analytics
+        // Update analytics first (CEI pattern)
         _updateUserAnalytics(msg.sender, amount, 0, false, true);
         _updateGlobalAnalytics(amount, 0, false, true);
+        
+        // Perform withdrawal
+        vault.withdrawCompleted();
         
         emit VaultWithdrawn(msg.sender, vaultAddress, amount, block.timestamp);
     }
@@ -268,15 +268,15 @@ contract VaultFactory is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         // Transfer penalty to factory first
         IERC20(vaultInfo.token).safeTransferFrom(msg.sender, address(this), penalty);
         
+        // Update analytics first (CEI pattern)
+        _updateUserAnalytics(msg.sender, vaultInfo.amount - penalty, 0, false, false);
+        _updateGlobalAnalytics(vaultInfo.amount - penalty, 0, false, false);
+        
         // Perform early withdrawal (penalty already transferred)
         vault.withdrawEarly(penalty);
         
         // Send penalty to treasury
         penaltyManager.collectPenalty(vaultInfo.token, penalty);
-        
-        // Update analytics for early withdrawal
-        _updateUserAnalytics(msg.sender, vaultInfo.amount - penalty, 0, false, false);
-        _updateGlobalAnalytics(vaultInfo.amount - penalty, 0, false, false);
         
         emit VaultWithdrawnEarly(msg.sender, vaultAddress, penalty, vaultInfo.amount - penalty, block.timestamp);
     }
@@ -433,14 +433,23 @@ contract VaultFactory is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         UserAnalytics storage analytics = userAnalytics[user];
         
         if (isVaultCreated) {
+            // Check for overflow
+            require(analytics.totalSaved + amount >= analytics.totalSaved, "Overflow in totalSaved");
+            require(analytics.currentLocked + amount >= analytics.currentLocked, "Overflow in currentLocked");
+            
             analytics.totalSaved += amount;
             analytics.currentLocked += amount;
             analytics.lastVaultCreated = block.timestamp;
             
-            // Update average lock duration
-            uint256 totalDuration = analytics.averageLockDuration * (analytics.completedVaults + analytics.earlyWithdrawals);
-            totalDuration += duration;
-            analytics.averageLockDuration = totalDuration / (analytics.completedVaults + analytics.earlyWithdrawals + 1);
+            // Update average lock duration (with division by zero protection)
+            uint256 totalVaults = analytics.completedVaults + analytics.earlyWithdrawals;
+            if (totalVaults > 0) {
+                uint256 totalDuration = analytics.averageLockDuration * totalVaults;
+                totalDuration += duration;
+                analytics.averageLockDuration = totalDuration / (totalVaults + 1);
+            } else {
+                analytics.averageLockDuration = duration;
+            }
         }
         
         if (isVaultCompleted) {
@@ -470,12 +479,20 @@ contract VaultFactory is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     ) internal {
         if (isVaultCreated) {
             globalAnalytics.totalVaultsCreated++;
+            
+            // Check for overflow
+            require(globalAnalytics.totalAmountLocked + amount >= globalAnalytics.totalAmountLocked, "Overflow in totalAmountLocked");
             globalAnalytics.totalAmountLocked += amount;
             
-            // Update average vault duration
-            uint256 totalDuration = globalAnalytics.averageVaultDuration * (globalAnalytics.totalVaultsCompleted + globalAnalytics.totalEarlyWithdrawals);
-            totalDuration += duration;
-            globalAnalytics.averageVaultDuration = totalDuration / (globalAnalytics.totalVaultsCompleted + globalAnalytics.totalEarlyWithdrawals + 1);
+            // Update average vault duration (with division by zero protection)
+            uint256 totalVaults = globalAnalytics.totalVaultsCompleted + globalAnalytics.totalEarlyWithdrawals;
+            if (totalVaults > 0) {
+                uint256 totalDuration = globalAnalytics.averageVaultDuration * totalVaults;
+                totalDuration += duration;
+                globalAnalytics.averageVaultDuration = totalDuration / (totalVaults + 1);
+            } else {
+                globalAnalytics.averageVaultDuration = duration;
+            }
         }
         
         if (isVaultCompleted) {
