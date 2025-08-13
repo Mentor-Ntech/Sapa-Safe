@@ -4,69 +4,65 @@
 
 @layer base {
   :root {
-    --border: 214.3 31.8% 91.4%;
-    --input: 216 33% 97%;
-    --ring: 215 20.2% 65.1%;
-
+    /* Modern Fintech Colors */
+    --primary: 221 83% 53%; /* Soft Blue - Trust & Modern */
+    --primary-foreground: 0 0% 100%;
+    
+    /* Secondary Colors */
+    --secondary: 210 40% 98%; /* Light Gray - Clean */
+    --secondary-foreground: 221 83% 53%;
+    
+    /* Accent Colors */
+    --accent: 142 71% 45%; /* Clean Green - Success */
+    --accent-foreground: 0 0% 100%;
+    
+    /* Neutral Colors */
     --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-
+    --foreground: 51 9% 18%; /* Soft Dark Gray - Readable */
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-
+    --card-foreground: 51 9% 18%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-
+    --popover-foreground: 51 9% 18%;
     --muted: 210 40% 96%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-
-    --accent: 210 40% 96%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-
-    --radius: 0.5rem;
+    --muted-foreground: 215 16% 47%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 221 83% 53%;
+    
+    /* Status Colors */
+    --success: 142 71% 45%;
+    --warning: 38 92% 50%;
+    --error: 0 84% 60%;
+    --info: 221 83% 53%;
+    
+    /* Currency Colors - Modern & Professional */
+    --ngn: 221 83% 53%; /* Blue */
+    --ghs: 142 71% 45%; /* Green */
+    --kes: 173 58% 39%; /* Teal */
+    --zar: 0 84% 60%; /* Red */
+    --xof: 45 93% 47%; /* Gold */
+    
+    --radius: 0.75rem;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
+    --background: 222 84% 4.9%;
     --foreground: 210 40% 98%;
-
-    --card: 222.2 84% 4.9%;
+    --card: 222 84% 4.9%;
     --card-foreground: 210 40% 98%;
-
-    --popover: 222.2 84% 4.9%;
+    --popover: 222 84% 4.9%;
     --popover-foreground: 210 40% 98%;
-
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-
-    --secondary: 217.2 32.6% 17.5%;
+    --primary: 221 83% 53%;
+    --primary-foreground: 222 84% 4.9%;
+    --secondary: 217 33% 17%;
     --secondary-foreground: 210 40% 98%;
-
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    --accent: 142 71% 45%;
+    --accent-foreground: 222 84% 4.9%;
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+    --border: 217 33% 17%;
+    --input: 217 33% 17%;
+    --ring: 221 83% 53%;
   }
 }
 
@@ -74,7 +70,261 @@
   * {
     @apply border-border;
   }
+  
   body {
     @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 4px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.3);
+    border-radius: 2px;
+  }
+}
+
+/* Modern Fintech Design System */
+@layer components {
+  /* Card Components */
+  .sapasafe-card {
+    @apply bg-card rounded-xl border border-border shadow-sm;
+  }
+  
+  .sapasafe-card-elevated {
+    @apply bg-card rounded-xl border border-border shadow-md;
+  }
+  
+  .sapasafe-card-interactive {
+    @apply bg-card rounded-xl border border-border shadow-sm transition-all duration-200 hover:shadow-md hover:border-primary/20 active:scale-[0.98];
+  }
+  
+  /* Button Components */
+  .sapasafe-btn-primary {
+    @apply bg-primary text-primary-foreground font-semibold px-6 py-3 rounded-lg transition-all duration-200 hover:bg-primary/90 active:scale-[0.98] shadow-sm;
+  }
+  
+  .sapasafe-btn-secondary {
+    @apply bg-secondary text-secondary-foreground font-semibold px-6 py-3 rounded-lg transition-all duration-200 hover:bg-secondary/80 active:scale-[0.98] shadow-sm;
+  }
+  
+  .sapasafe-btn-accent {
+    @apply bg-accent text-accent-foreground font-semibold px-6 py-3 rounded-lg transition-all duration-200 hover:bg-accent/90 active:scale-[0.98] shadow-sm;
+  }
+  
+  .sapasafe-btn-outline {
+    @apply bg-transparent border border-primary text-primary font-semibold px-6 py-3 rounded-lg transition-all duration-200 hover:bg-primary hover:text-primary-foreground active:scale-[0.98];
+  }
+  
+  .sapasafe-btn-ghost {
+    @apply bg-transparent text-foreground font-medium px-4 py-2 rounded-lg transition-all duration-200 hover:bg-muted active:scale-[0.98];
+  }
+  
+  /* Status Indicators */
+  .sapasafe-status-success {
+    color: hsl(var(--success));
+    background-color: hsl(var(--success) / 0.05);
+    border: 1px solid hsl(var(--success) / 0.2);
+  }
+  
+  .sapasafe-status-warning {
+    color: hsl(var(--warning));
+    background-color: hsl(var(--warning) / 0.05);
+    border: 1px solid hsl(var(--warning) / 0.2);
+  }
+  
+  .sapasafe-status-error {
+    color: hsl(var(--error));
+    background-color: hsl(var(--error) / 0.05);
+    border: 1px solid hsl(var(--error) / 0.2);
+  }
+  
+  .sapasafe-status-info {
+    color: hsl(var(--info));
+    background-color: hsl(var(--info) / 0.05);
+    border: 1px solid hsl(var(--info) / 0.2);
+  }
+  
+  /* Currency-specific styles */
+  .currency-ngn {
+    @apply text-[#3B82F6] bg-[#3B82F6]/5 border-[#3B82F6]/20;
+  }
+  
+  .currency-ghs {
+    @apply text-[#10B981] bg-[#10B981]/5 border-[#10B981]/20;
+  }
+  
+  .currency-kes {
+    @apply text-[#14B8A6] bg-[#14B8A6]/5 border-[#14B8A6]/20;
+  }
+  
+  .currency-zar {
+    @apply text-[#EF4444] bg-[#EF4444]/5 border-[#EF4444]/20;
+  }
+  
+  .currency-xof {
+    @apply text-[#F59E0B] bg-[#F59E0B]/5 border-[#F59E0B]/20;
+  }
+  
+  /* Progress Indicators */
+  .sapasafe-progress {
+    @apply w-full bg-muted rounded-full h-1.5 overflow-hidden;
+  }
+  
+  .sapasafe-progress-bar {
+    @apply h-full bg-primary rounded-full transition-all duration-500 ease-out;
+  }
+  
+  /* Streak Counter */
+  .sapasafe-streak {
+    @apply bg-primary text-white font-semibold px-4 py-2 rounded-full shadow-sm;
+  }
+  
+  /* Achievement Badge */
+  .sapasafe-badge {
+    @apply inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold;
+  }
+  
+  .sapasafe-badge-gold {
+    @apply bg-[#F59E0B] text-white;
+  }
+  
+  .sapasafe-badge-silver {
+    @apply bg-gray-500 text-white;
+  }
+  
+  .sapasafe-badge-bronze {
+    @apply bg-[#D97706] text-white;
+  }
+  
+  /* Animations */
+  .sapasafe-fade-in {
+    animation: fadeIn 0.4s ease-out;
+  }
+  
+  .sapasafe-slide-up {
+    animation: slideUp 0.3s ease-out;
+  }
+  
+  .sapasafe-bounce-in {
+    animation: bounceIn 0.5s ease-out;
+  }
+  
+  /* Loading States */
+  .sapasafe-loading {
+    @apply animate-pulse bg-muted rounded-lg;
+  }
+  
+  .sapasafe-loading-text {
+    @apply animate-pulse bg-muted rounded h-4;
+  }
+  
+  /* Mobile Navigation */
+  .sapasafe-nav-item {
+    @apply flex flex-col items-center justify-center py-3 px-4 rounded-lg transition-all duration-200;
+  }
+  
+  .sapasafe-nav-item-active {
+    @apply text-primary bg-primary/5;
+  }
+  
+  .sapasafe-nav-item-inactive {
+    @apply text-muted-foreground hover:text-foreground hover:bg-muted;
+  }
+  
+  /* Typography */
+  .sapasafe-heading-1 {
+    @apply text-3xl md:text-4xl font-bold text-foreground tracking-tight;
+  }
+  
+  .sapasafe-heading-2 {
+    @apply text-2xl md:text-3xl font-semibold text-foreground tracking-tight;
+  }
+  
+  .sapasafe-heading-3 {
+    @apply text-xl md:text-2xl font-semibold text-foreground tracking-tight;
+  }
+  
+  .sapasafe-text-large {
+    @apply text-lg font-medium text-foreground;
+  }
+  
+  .sapasafe-text-body {
+    @apply text-base text-foreground;
+  }
+  
+  .sapasafe-text-small {
+    @apply text-sm text-muted-foreground;
+  }
+  
+  .sapasafe-text-caption {
+    @apply text-xs text-muted-foreground;
+  }
+}
+
+/* Keyframe Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes bounceIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Clean Background */
+.sapasafe-pattern {
+  background-image: 
+    radial-gradient(circle at 20% 20%, hsl(var(--primary) / 0.03) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, hsl(var(--accent) / 0.03) 0%, transparent 50%);
+  background-size: 200px 200px;
+}
+
+/* Responsive Design */
+@media (max-width: 640px) {
+  .sapasafe-card {
+    @apply rounded-lg;
+  }
+  
+  .sapasafe-btn-primary,
+  .sapasafe-btn-secondary,
+  .sapasafe-btn-accent,
+  .sapasafe-btn-outline {
+    @apply px-4 py-2.5 text-sm;
   }
 }

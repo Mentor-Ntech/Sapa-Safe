@@ -2,14 +2,14 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 
-import { Navbar } from '@/components/navbar';
 import { WalletProvider } from "@/components/wallet-provider"
+import { MobileNav } from "@/components/mobile-nav"
 
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'sapasafe',
-  description: 'A new Celo blockchain project',
+  title: 'SapaSafe - Secure African Savings',
+  description: 'Time-locked savings in African currencies. Build wealth with discipline.',
 };
 
 export default function RootLayout({
@@ -20,15 +20,14 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        {/* Navbar is included on all pages */}
-        <div className="relative flex min-h-screen flex-col">
-          <WalletProvider>
-            <Navbar />
+        <WalletProvider>
+          <div className="relative flex min-h-screen flex-col">
             <main className="flex-1">
               {children}
             </main>
-          </WalletProvider>
-        </div>
+            <MobileNav />
+          </div>
+        </WalletProvider>
       </body>
     </html>
   );
