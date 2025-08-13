@@ -1,5 +1,8 @@
 import type { HardhatUserConfig } from "hardhat/config";
-import "@nomicfoundation/hardhat-toolbox-viem";
+import "@nomicfoundation/hardhat-ethers";
+import "@nomicfoundation/hardhat-verify";
+import "hardhat-gas-reporter";
+import "dotenv/config";
 
 const config: HardhatUserConfig = {
   solidity: {

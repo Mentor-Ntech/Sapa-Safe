@@ -1,0 +1,19 @@
+{
+  "network": "alfajores",
+  "deployer": "0xFFC18dFBbF140D2508E11A87bD0529B9dC04eB88",
+  "timestamp": "2025-08-13T12:16:27.206Z",
+  "contracts": {
+    "tokenRegistry": {
+      "implementation": "0x489A6563295E96aD48647D5B4e555D879C433b59",
+      "proxy": "0x8c3907ffc68f305A60d241a88D5b2d3C665eAcdF"
+    },
+    "penaltyManager": {
+      "implementation": "0xA3A5d917B952E73B61a92Aa311Dc70844e3d77cd",
+      "proxy": "0x7777e46157369afEfE40bc697Dc70c225667882f"
+    },
+    "vaultFactory": {
+      "implementation": "0x5fcC7d6A99Ca919463E3b895d93aAfBe2B126095",
+      "proxy": "0xb6BEE6fF5747865Bb2b6069B11e22ba169cF7A12"
+    }
+  }
+}
