@@ -1,199 +1,209 @@
-import { Button } from "@/components/ui/button"
+"use client"
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { User, Mail, MapPin, Settings, Bell, Shield, HelpCircle, LogOut } from "lucide-react"
+import { User, Settings, Shield, Bell, HelpCircle, LogOut, Edit, Camera } from "lucide-react"
+import { PageTransition } from "@/components/page-transition"
 
 export default function ProfilePage() {
   return (
-    <div className="min-h-screen bg-background pb-20">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-slate-600 to-gray-600 text-white px-4 py-6">
-        <h1 className="text-2xl font-bold mb-2">Profile</h1>
-        <p className="text-slate-100">Manage your account settings</p>
+    <PageTransition>
+      <div className="min-h-screen bg-background pb-20">
+        {/* Header */}
+        <div className="bg-primary text-white px-4 py-8">
+          <div>
+            <h1 className="sapasafe-heading-2 mb-2">Profile</h1>
+            <p className="sapasafe-text-large opacity-90">Manage your account settings</p>
+          </div>
+        </div>
+
+        <div className="px-4 py-6 space-y-6">
+          {/* Profile Info */}
+          <Card className="sapasafe-card">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="relative">
+                  <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center">
+                    <User className="h-10 w-10 text-primary" />
+                  </div>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full p-0 bg-white"
+                  >
+                    <Camera className="h-4 w-4" />
+                  </Button>
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-2">
+                    <h2 className="sapasafe-heading-3">John Doe</h2>
+                    <Button size="sm" variant="ghost" className="p-1">
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <p className="sapasafe-text-small text-muted-foreground mb-2">john.doe@example.com</p>
+                  <div className="flex items-center gap-2">
+                    <Badge className="sapasafe-status-success">Verified</Badge>
+                    <Badge className="sapasafe-status-info">Premium</Badge>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Account Stats */}
+          <div className="grid grid-cols-2 gap-4">
+            <Card className="sapasafe-card sapasafe-card-interactive">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="sapasafe-text-small mb-1">Total Vaults</p>
+                    <p className="sapasafe-heading-2 text-primary">8</p>
+                    <p className="sapasafe-text-caption text-success">+2 this month</p>
+                  </div>
+                  <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
+                    <User className="h-6 w-6 text-primary" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="sapasafe-card sapasafe-card-interactive">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="sapasafe-text-small mb-1">Success Rate</p>
+                    <p className="sapasafe-heading-2 text-accent">87%</p>
+                    <p className="sapasafe-text-caption text-success">7/8 completed</p>
+                  </div>
+                  <div className="w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center">
+                    <Shield className="h-6 w-6 text-accent" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Settings */}
+          <Card className="sapasafe-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+                  <Settings className="h-5 w-5 text-white" />
+                </div>
+                <span className="sapasafe-heading-3">Account Settings</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between p-4 bg-primary/5 rounded-lg border border-primary/20">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                    <Bell className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="sapasafe-text-body font-semibold">Notifications</p>
+                    <p className="sapasafe-text-small text-muted-foreground">Manage your alerts</p>
+                  </div>
+                </div>
+                <Button variant="ghost" size="sm">
+                  <Edit className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <div className="flex items-center justify-between p-4 bg-accent/5 rounded-lg border border-accent/20">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-accent/10 rounded-lg flex items-center justify-center">
+                    <Shield className="h-5 w-5 text-accent" />
+                  </div>
+                  <div>
+                    <p className="sapasafe-text-body font-semibold">Security</p>
+                    <p className="sapasafe-text-small text-muted-foreground">Password & 2FA settings</p>
+                  </div>
+                </div>
+                <Button variant="ghost" size="sm">
+                  <Edit className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <div className="flex items-center justify-between p-4 bg-info/5 rounded-lg border border-info/20">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-info/10 rounded-lg flex items-center justify-center">
+                    <HelpCircle className="h-5 w-5 text-info" />
+                  </div>
+                  <div>
+                    <p className="sapasafe-text-body font-semibold">Help & Support</p>
+                    <p className="sapasafe-text-small text-muted-foreground">Get help when you need it</p>
+                  </div>
+                </div>
+                <Button variant="ghost" size="sm">
+                  <Edit className="h-4 w-4" />
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Preferences */}
+          <Card className="sapasafe-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-accent rounded-lg flex items-center justify-center">
+                  <Settings className="h-5 w-5 text-white" />
+                </div>
+                <span className="sapasafe-heading-3">Preferences</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="p-4 bg-success/5 rounded-lg border border-success/20">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="sapasafe-text-body font-semibold">Default Currency</p>
+                    <p className="sapasafe-text-small text-muted-foreground">Nigerian Naira (₦)</p>
+                  </div>
+                  <Badge className="sapasafe-status-success">Active</Badge>
+                </div>
+              </div>
+
+              <div className="p-4 bg-warning/5 rounded-lg border border-warning/20">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="sapasafe-text-body font-semibold">Language</p>
+                    <p className="sapasafe-text-small text-muted-foreground">English</p>
+                  </div>
+                  <Button variant="outline" size="sm">
+                    Change
+                  </Button>
+                </div>
+              </div>
+
+              <div className="p-4 bg-info/5 rounded-lg border border-info/20">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="sapasafe-text-body font-semibold">Time Zone</p>
+                    <p className="sapasafe-text-small text-muted-foreground">West Africa Time (WAT)</p>
+                  </div>
+                  <Button variant="outline" size="sm">
+                    Change
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Logout */}
+          <Card className="sapasafe-card">
+            <CardContent className="p-4">
+              <Button 
+                variant="outline" 
+                className="w-full sapasafe-btn-outline text-error border-error/20 hover:bg-error/5"
+              >
+                <LogOut className="h-4 w-4 mr-2" />
+                Sign Out
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
       </div>
-
-      <div className="px-4 py-6 space-y-6">
-        {/* User Info */}
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4 mb-6">
-              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                <User className="h-8 w-8 text-white" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold">John Doe</h2>
-                <p className="text-muted-foreground">john.doe@example.com</p>
-                <Badge variant="secondary" className="mt-2">
-                  <MapPin className="h-3 w-3 mr-1" />
-                  Nigeria
-                </Badge>
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div className="text-center p-3 bg-blue-50 rounded-lg">
-                <p className="text-2xl font-bold text-blue-600">8</p>
-                <p className="text-sm text-muted-foreground">Total Vaults</p>
-              </div>
-              <div className="text-center p-3 bg-green-50 rounded-lg">
-                <p className="text-2xl font-bold text-green-600">5</p>
-                <p className="text-sm text-muted-foreground">Completed</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Account Settings */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Settings className="h-5 w-5" />
-              Account Settings
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg cursor-pointer">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                  <User className="h-4 w-4 text-blue-600" />
-                </div>
-                <div>
-                  <p className="font-medium">Edit Profile</p>
-                  <p className="text-sm text-muted-foreground">Update your information</p>
-                </div>
-              </div>
-              <Button variant="ghost" size="sm">
-                Edit
-              </Button>
-            </div>
-
-            <div className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg cursor-pointer">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                  <Mail className="h-4 w-4 text-green-600" />
-                </div>
-                <div>
-                  <p className="font-medium">Email Preferences</p>
-                  <p className="text-sm text-muted-foreground">Manage notifications</p>
-                </div>
-              </div>
-              <Button variant="ghost" size="sm">
-                Configure
-              </Button>
-            </div>
-
-            <div className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg cursor-pointer">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
-                  <Bell className="h-4 w-4 text-purple-600" />
-                </div>
-                <div>
-                  <p className="font-medium">Notifications</p>
-                  <p className="text-sm text-muted-foreground">Vault alerts and reminders</p>
-                </div>
-              </div>
-              <Button variant="ghost" size="sm">
-                Settings
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Security */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Shield className="h-5 w-5" />
-              Security
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg cursor-pointer">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center">
-                  <Shield className="h-4 w-4 text-orange-600" />
-                </div>
-                <div>
-                  <p className="font-medium">Wallet Security</p>
-                  <p className="text-sm text-muted-foreground">Manage wallet connections</p>
-                </div>
-              </div>
-              <Button variant="ghost" size="sm">
-                Manage
-              </Button>
-            </div>
-
-            <div className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg cursor-pointer">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
-                  <LogOut className="h-4 w-4 text-red-600" />
-                </div>
-                <div>
-                  <p className="font-medium">Disconnect Wallet</p>
-                  <p className="text-sm text-muted-foreground">Sign out from this device</p>
-                </div>
-              </div>
-              <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
-                Disconnect
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Support */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <HelpCircle className="h-5 w-5" />
-              Support
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg cursor-pointer">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                  <HelpCircle className="h-4 w-4 text-blue-600" />
-                </div>
-                <div>
-                  <p className="font-medium">Help Center</p>
-                  <p className="text-sm text-muted-foreground">FAQs and guides</p>
-                </div>
-              </div>
-              <Button variant="ghost" size="sm">
-                Visit
-              </Button>
-            </div>
-
-            <div className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg cursor-pointer">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                  <Mail className="h-4 w-4 text-green-600" />
-                </div>
-                <div>
-                  <p className="font-medium">Contact Support</p>
-                  <p className="text-sm text-muted-foreground">Get help from our team</p>
-                </div>
-              </div>
-              <Button variant="ghost" size="sm">
-                Contact
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* App Info */}
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-center space-y-2">
-              <h3 className="font-semibold">SapaSafe</h3>
-              <p className="text-sm text-muted-foreground">Version 1.0.0</p>
-              <p className="text-xs text-muted-foreground">
-                Built on Celo • Secure African Savings
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+    </PageTransition>
   )
 }
