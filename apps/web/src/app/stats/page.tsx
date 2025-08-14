@@ -1,194 +1,199 @@
+"use client"
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { TrendingUp, Target, Calendar, Award } from "lucide-react"
+import { TrendingUp, TrendingDown, DollarSign, Target, Calendar, BarChart3 } from "lucide-react"
+import { PageTransition } from "@/components/page-transition"
 
 export default function StatsPage() {
   return (
-    <div className="min-h-screen bg-background pb-20">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-4 py-6">
-        <h1 className="text-2xl font-bold mb-2">Savings Analytics</h1>
-        <p className="text-emerald-100">Track your wealth building journey</p>
-      </div>
+    <PageTransition>
+      <div className="min-h-screen bg-background pb-20">
+        {/* Header */}
+        <div className="bg-primary text-white px-4 py-8">
+          <div>
+            <h1 className="sapasafe-heading-2 mb-2">Savings Analytics</h1>
+            <p className="sapasafe-text-large opacity-90">Track your financial progress</p>
+          </div>
+        </div>
 
-      <div className="px-4 py-6 space-y-6">
-        {/* Overview Stats */}
-        <div className="grid grid-cols-2 gap-4">
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Total Saved</p>
-                  <p className="text-2xl font-bold">$1,250</p>
-                  <p className="text-xs text-green-600">+15% this month</p>
+        <div className="px-4 py-6 space-y-6">
+          {/* Quick Stats */}
+          <div className="grid grid-cols-2 gap-4">
+            <Card className="sapasafe-card sapasafe-card-interactive">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="sapasafe-text-small mb-1">Total Saved</p>
+                    <p className="sapasafe-heading-2 text-primary">₦125,000</p>
+                    <p className="sapasafe-text-caption text-success">+15% this month</p>
+                  </div>
+                  <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
+                    <DollarSign className="h-6 w-6 text-primary" />
+                  </div>
                 </div>
-                <TrendingUp className="h-8 w-8 text-green-500" />
+              </CardContent>
+            </Card>
+
+            <Card className="sapasafe-card sapasafe-card-interactive">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="sapasafe-text-small mb-1">Monthly Goal</p>
+                    <p className="sapasafe-heading-2 text-accent">₦50,000</p>
+                    <p className="sapasafe-text-caption text-success">80% completed</p>
+                  </div>
+                  <div className="w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center">
+                    <Target className="h-6 w-6 text-accent" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Savings Trend */}
+          <Card className="sapasafe-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+                  <TrendingUp className="h-5 w-5 text-white" />
+                </div>
+                <span className="sapasafe-heading-3">Savings Trend</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 bg-primary/5 rounded-lg border border-primary/20">
+                  <div>
+                    <p className="sapasafe-text-body font-semibold">This Month</p>
+                    <p className="sapasafe-text-small text-muted-foreground">December 2024</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="sapasafe-text-body font-semibold text-success">+₦25,000</p>
+                    <p className="sapasafe-text-small text-success">+20% vs last month</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between p-4 bg-accent/5 rounded-lg border border-accent/20">
+                  <div>
+                    <p className="sapasafe-text-body font-semibold">Last Month</p>
+                    <p className="sapasafe-text-small text-muted-foreground">November 2024</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="sapasafe-text-body font-semibold text-accent">+₦20,000</p>
+                    <p className="sapasafe-text-small text-accent">+15% vs previous</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between p-4 bg-info/5 rounded-lg border border-info/20">
+                  <div>
+                    <p className="sapasafe-text-body font-semibold">October 2024</p>
+                    <p className="sapasafe-text-small text-muted-foreground">Previous month</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="sapasafe-text-body font-semibold text-info">+₦17,500</p>
+                    <p className="sapasafe-text-small text-info">+12% vs previous</p>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Savings Goal</p>
-                  <p className="text-2xl font-bold">$2,000</p>
-                  <p className="text-xs text-blue-600">62.5% complete</p>
+          {/* Vault Performance */}
+          <Card className="sapasafe-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-accent rounded-lg flex items-center justify-center">
+                  <BarChart3 className="h-5 w-5 text-white" />
                 </div>
-                <Target className="h-8 w-8 text-blue-500" />
+                <span className="sapasafe-heading-3">Vault Performance</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="p-4 bg-success/5 rounded-lg border border-success/20">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="sapasafe-text-body font-semibold">cNGN Vault</p>
+                    <p className="sapasafe-text-small text-success">65% complete</p>
+                  </div>
+                  <div className="sapasafe-progress">
+                    <div className="sapasafe-progress-bar" style={{ width: '65%' }}></div>
+                  </div>
+                  <p className="sapasafe-text-small text-muted-foreground mt-2">₦50,000 • 45 days remaining</p>
+                </div>
+
+                <div className="p-4 bg-warning/5 rounded-lg border border-warning/20">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="sapasafe-text-body font-semibold">cGHS Vault</p>
+                    <p className="sapasafe-text-small text-warning">85% complete</p>
+                  </div>
+                  <div className="sapasafe-progress">
+                    <div className="sapasafe-progress-bar" style={{ width: '85%' }}></div>
+                  </div>
+                  <p className="sapasafe-text-small text-muted-foreground mt-2">₵2,000 • 15 days remaining</p>
+                </div>
+
+                <div className="p-4 bg-info/5 rounded-lg border border-info/20">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="sapasafe-text-body font-semibold">cKES Vault</p>
+                    <p className="sapasafe-text-small text-info">100% complete</p>
+                  </div>
+                  <div className="sapasafe-progress">
+                    <div className="sapasafe-progress-bar" style={{ width: '100%' }}></div>
+                  </div>
+                  <p className="sapasafe-text-small text-success mt-2">KSh 100,000 • Successfully completed</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Savings Goals */}
+          <Card className="sapasafe-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-info rounded-lg flex items-center justify-center">
+                  <Calendar className="h-5 w-5 text-white" />
+                </div>
+                <span className="sapasafe-heading-3">Savings Goals</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="p-4 bg-primary/5 rounded-lg border border-primary/20">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="sapasafe-text-body font-semibold">Emergency Fund</p>
+                      <p className="sapasafe-text-small text-muted-foreground">Target: ₦200,000</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="sapasafe-text-body font-semibold text-primary">₦125,000</p>
+                      <p className="sapasafe-text-small text-primary">62.5% complete</p>
+                    </div>
+                  </div>
+                  <div className="sapasafe-progress mt-3">
+                    <div className="sapasafe-progress-bar" style={{ width: '62.5%' }}></div>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-accent/5 rounded-lg border border-accent/20">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="sapasafe-text-body font-semibold">Travel Fund</p>
+                      <p className="sapasafe-text-small text-muted-foreground">Target: ₦100,000</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="sapasafe-text-body font-semibold text-accent">₦75,000</p>
+                      <p className="sapasafe-text-small text-accent">75% complete</p>
+                    </div>
+                  </div>
+                  <div className="sapasafe-progress mt-3">
+                    <div className="sapasafe-progress-bar" style={{ width: '75%' }}></div>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
         </div>
-
-        {/* Progress Bar */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Goal Progress</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div className="flex justify-between text-sm">
-                <span>Progress to $2,000 goal</span>
-                <span>62.5%</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-3">
-                <div className="bg-gradient-to-r from-blue-500 to-emerald-500 h-3 rounded-full" style={{ width: '62.5%' }}></div>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                $750 more to reach your goal
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Vault Performance */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Vault Performance</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                  <Award className="h-5 w-5 text-green-600" />
-                </div>
-                <div>
-                  <p className="font-medium">Completed Vaults</p>
-                  <p className="text-sm text-muted-foreground">Successfully completed</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="text-2xl font-bold text-green-600">5</p>
-                <p className="text-xs text-muted-foreground">83% success rate</p>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between p-3 bg-orange-50 rounded-lg">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
-                  <Calendar className="h-5 w-5 text-orange-600" />
-                </div>
-                <div>
-                  <p className="font-medium">Active Vaults</p>
-                  <p className="text-sm text-muted-foreground">Currently locked</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="text-2xl font-bold text-orange-600">3</p>
-                <p className="text-xs text-muted-foreground">$1,250 locked</p>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between p-3 bg-red-50 rounded-lg">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
-                  <Calendar className="h-5 w-5 text-red-600" />
-                </div>
-                <div>
-                  <p className="font-medium">Early Withdrawals</p>
-                  <p className="text-sm text-muted-foreground">Penalties paid</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="text-2xl font-bold text-red-600">1</p>
-                <p className="text-xs text-muted-foreground">$10 penalty</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Monthly Savings Chart */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Monthly Savings</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">December 2023</span>
-                <Badge variant="secondary" className="bg-green-100 text-green-800">
-                  $500
-                </Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">November 2023</span>
-                <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-                  $300
-                </Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">October 2023</span>
-                <Badge variant="secondary" className="bg-purple-100 text-purple-800">
-                  $450
-                </Badge>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Achievements */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Achievements</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="text-center p-4 bg-yellow-50 rounded-lg">
-                <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                  <Award className="h-6 w-6 text-yellow-600" />
-                </div>
-                <p className="font-medium text-sm">First Vault</p>
-                <p className="text-xs text-muted-foreground">Created your first vault</p>
-              </div>
-              
-              <div className="text-center p-4 bg-green-50 rounded-lg">
-                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                  <Target className="h-6 w-6 text-green-600" />
-                </div>
-                <p className="font-medium text-sm">Goal Setter</p>
-                <p className="text-xs text-muted-foreground">Set a savings goal</p>
-              </div>
-              
-              <div className="text-center p-4 bg-blue-50 rounded-lg">
-                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                  <TrendingUp className="h-6 w-6 text-blue-600" />
-                </div>
-                <p className="font-medium text-sm">Consistent Saver</p>
-                <p className="text-xs text-muted-foreground">3 months in a row</p>
-              </div>
-              
-              <div className="text-center p-4 bg-gray-50 rounded-lg opacity-50">
-                <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                  <Award className="h-6 w-6 text-gray-400" />
-                </div>
-                <p className="font-medium text-sm">Millionaire</p>
-                <p className="text-xs text-muted-foreground">Save $1M</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
-    </div>
+    </PageTransition>
   )
 }
