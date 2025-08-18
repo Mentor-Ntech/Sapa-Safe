@@ -1,174 +1,241 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect } from "react"
+import { useVaults, useTokenRegistry, useTransactions } from "@/Hooks"
+import { useAccount } from "wagmi"
+import { PageTransition } from "@/components/page-transition"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ArrowLeft, ArrowRight, DollarSign, Calendar, Target, CheckCircle } from "lucide-react"
-import { PageTransition } from "@/components/page-transition"
+import { ArrowLeft, ArrowRight, Check, PiggyBank, Clock, Target } from "lucide-react"
+import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-
-const currencies = [
-  { code: "cNGN", name: "Nigerian Naira", symbol: "₦" },
-  { code: "cGHS", name: "Ghanaian Cedi", symbol: "₵" },
-  { code: "cKES", name: "Kenyan Shilling", symbol: "KSh" },
-  { code: "cZAR", name: "South African Rand", symbol: "R" },
-  { code: "cXOF", name: "West African CFA", symbol: "CFA" },
-]
-
-const durations = [
-  { value: "30", label: "30 days (1 month)" },
-  { value: "60", label: "60 days (2 months)" },
-  { value: "90", label: "90 days (3 months)" },
-  { value: "180", label: "180 days (6 months)" },
-  { value: "365", label: "365 days (1 year)" },
-]
 
 export default function CreateVaultPage() {
   const router = useRouter()
-  const [step, setStep] = useState(1)
+  const { address, isConnected } = useAccount()
+  const { 
+    createNewVault, 
+    refreshVaultData,
+    isLoading: isVaultLoading 
+  } = useVaults()
+  const { 
+    supportedTokens, 
+    isLoadingSupportedTokens: isTokenLoading 
+  } = useTokenRegistry()
+  const { addTransaction } = useTransactions()
+  
+  const [currentStep, setCurrentStep] = useState(1)
   const [formData, setFormData] = useState({
-    amount: "",
-    currency: "",
-    duration: "",
-    goal: "",
+    token: '',
+    amount: '',
+    duration: '',
+    goal: ''
   })
+  const [isCreating, setIsCreating] = useState(false)
+
+  // Available currencies from token registry
+  console.log('Supported tokens from contract:', supportedTokens)
+  console.log('Is loading tokens:', isTokenLoading)
+  
+  // Use supported tokens directly (they now include fallback currencies)
+  const availableCurrencies = Array.isArray(supportedTokens) ? supportedTokens : []
+  
+  console.log('Available currencies:', availableCurrencies)
+  
+  // Duration options
+  const durations = [
+    { value: '30', label: '1 Month (30 days)', days: 30 },
+    { value: '60', label: '2 Months (60 days)', days: 60 },
+    { value: '90', label: '3 Months (90 days)', days: 90 },
+    { value: '120', label: '4 Months (120 days)', days: 120 },
+    { value: '150', label: '5 Months (150 days)', days: 150 },
+    { value: '180', label: '6 Months (180 days)', days: 180 },
+    { value: '365', label: '1 Year (365 days)', days: 365 },
+  ]
+
+  // Not connected state
+  if (!isConnected) {
+    return (
+      <PageTransition>
+        <div className="container mx-auto px-4 py-8">
+          <div className="text-center">
+            <h1 className="sapasafe-heading-1 mb-4">Connect Your Wallet</h1>
+            <p className="sapasafe-text text-muted-foreground">
+              Connect your wallet to create a savings vault
+            </p>
+          </div>
+        </div>
+      </PageTransition>
+    )
+  }
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
   }
 
+  const validateStep = (step: number) => {
+    switch (step) {
+      case 1:
+        return formData.token && formData.amount
+      case 2:
+        return formData.duration
+      case 3:
+        return formData.goal
+      default:
+        return false
+    }
+  }
+
   const handleNext = () => {
-    if (step === 1 && (!formData.amount || !formData.currency)) {
-      toast.error("Please fill in all required fields")
-      return
-    }
-    if (step === 2 && !formData.duration) {
-      toast.error("Please select a duration")
-      return
-    }
-    if (step < 3) {
-      setStep(step + 1)
+    if (validateStep(currentStep)) {
+      setCurrentStep(prev => Math.min(prev + 1, 3))
+    } else {
+      toast.error('Please fill in all required fields')
     }
   }
 
   const handleBack = () => {
-    if (step > 1) {
-      setStep(step - 1)
+    setCurrentStep(prev => Math.max(prev - 1, 1))
+  }
+
+  const handleCreateVault = async () => {
+    if (!validateStep(3)) {
+      toast.error('Please fill in all required fields')
+      return
+    }
+
+    try {
+      setIsCreating(true)
+      
+      // Convert amount to bigint (assuming 18 decimals)
+      const amountInWei = BigInt(parseFloat(formData.amount) * 10**18)
+      const durationInSeconds = BigInt(parseInt(formData.duration) * 24 * 60 * 60) // days to seconds
+      
+      const result = await createNewVault(
+        formData.token,
+        amountInWei,
+        durationInSeconds,
+        formData.goal
+      )
+
+      // Note: createNewVault returns void, so we'll just show success
+      addTransaction({
+        hash: '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`,
+        type: 'create_vault',
+        status: 'pending',
+        description: `Created ${formData.token} vault`,
+        metadata: { 
+          token: formData.token, 
+          amount: formData.amount, 
+          duration: formData.duration,
+          goal: formData.goal 
+        }
+      })
+      
+      // Refresh vault data to include the newly created vault
+      await refreshVaultData()
+      
+      toast.success('Vault creation initiated!')
+      router.push('/vaults')
+    } catch (error) {
+      console.error('Error creating vault:', error)
+      toast.error('Failed to create vault')
+    } finally {
+      setIsCreating(false)
     }
   }
 
-  const handleCreateVault = () => {
-    toast.success("Vault created successfully!")
-    router.push("/vaults")
+  const getSelectedCurrency = () => {
+    return availableCurrencies.find(c => c.symbol === formData.token)
   }
 
-  const selectedCurrency = currencies.find(c => c.code === formData.currency)
+  const getSelectedDuration = () => {
+    return durations.find(d => d.value === formData.duration)
+  }
 
   return (
     <PageTransition>
-      <div className="min-h-screen bg-background pb-20">
+      <div className="container mx-auto px-4 py-8 max-w-2xl">
         {/* Header */}
-        <div className="bg-primary text-white px-4 py-8">
-          <div className="flex items-center gap-4">
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className="text-white hover:bg-white/10"
-              onClick={() => router.back()}
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <div>
-              <h1 className="sapasafe-heading-2 mb-2">Create New Vault</h1>
-              <p className="sapasafe-text-large opacity-90">Step {step} of 3</p>
-            </div>
+        <div className="flex items-center gap-4 mb-8">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => router.back()}
+            className="sapasafe-btn-outline"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back
+          </Button>
+          <div>
+            <h1 className="sapasafe-heading-1">Create New Vault</h1>
+            <p className="sapasafe-text text-muted-foreground">
+              Set up your savings goal and lock your funds
+            </p>
           </div>
         </div>
 
-        <div className="px-4 py-6 space-y-6">
-          {/* Progress Steps */}
-          <Card className="sapasafe-card">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                    step >= 1 ? 'bg-primary text-white' : 'bg-muted text-muted-foreground'
-                  }`}>
-                    {step > 1 ? <CheckCircle className="h-4 w-4" /> : '1'}
-                  </div>
-                  <span className={`sapasafe-text-small ${step >= 1 ? 'text-primary' : 'text-muted-foreground'}`}>
-                    Amount & Currency
-                  </span>
-                </div>
-                <div className="flex-1 h-px bg-muted mx-4"></div>
-                <div className="flex items-center gap-3">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                    step >= 2 ? 'bg-primary text-white' : 'bg-muted text-muted-foreground'
-                  }`}>
-                    {step > 2 ? <CheckCircle className="h-4 w-4" /> : '2'}
-                  </div>
-                  <span className={`sapasafe-text-small ${step >= 2 ? 'text-primary' : 'text-muted-foreground'}`}>
-                    Duration
-                  </span>
-                </div>
-                <div className="flex-1 h-px bg-muted mx-4"></div>
-                <div className="flex items-center gap-3">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                    step >= 3 ? 'bg-primary text-white' : 'bg-muted text-muted-foreground'
-                  }`}>
-                    3
-                  </div>
-                  <span className={`sapasafe-text-small ${step >= 3 ? 'text-primary' : 'text-muted-foreground'}`}>
-                    Review
-                  </span>
-                </div>
+        {/* Progress Steps */}
+        <div className="flex items-center justify-between mb-8">
+          {[1, 2, 3].map((step) => (
+            <div key={step} className="flex items-center">
+              <div className={`
+                w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium
+                ${currentStep >= step 
+                  ? 'bg-primary text-white' 
+                  : 'bg-muted text-muted-foreground'
+                }
+              `}>
+                {currentStep > step ? <Check className="h-4 w-4" /> : step}
               </div>
-            </CardContent>
-          </Card>
+              {step < 3 && (
+                <div className={`
+                  w-16 h-0.5 mx-2
+                  ${currentStep > step ? 'bg-primary' : 'bg-muted'}
+                `} />
+              )}
+            </div>
+          ))}
+        </div>
 
-          {/* Step Content */}
-          {step === 1 && (
-            <Card className="sapasafe-card">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                    <DollarSign className="h-5 w-5 text-white" />
-                  </div>
-                  <span className="sapasafe-heading-3">Amount & Currency</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-2">
-                  <Label htmlFor="amount">Amount to Save</Label>
-                  <div className="relative">
-                    <Input
-                      id="amount"
-                      type="number"
-                      placeholder="Enter amount"
-                      value={formData.amount}
-                      onChange={(e) => handleInputChange("amount", e.target.value)}
-                      className="pl-12"
-                    />
-                    <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="currency">Currency</Label>
-                  <Select value={formData.currency} onValueChange={(value: string) => handleInputChange("currency", value)}>
-                    <SelectTrigger>
+        {/* Step Content */}
+        <Card className="sapasafe-card">
+          <CardHeader>
+            <CardTitle className="sapasafe-heading-3">
+              {currentStep === 1 && 'Choose Currency & Amount'}
+              {currentStep === 2 && 'Select Lock Duration'}
+              {currentStep === 3 && 'Set Your Goal'}
+            </CardTitle>
+            <CardDescription>
+              {currentStep === 1 && 'Select the currency and amount you want to save'}
+              {currentStep === 2 && 'Choose how long you want to lock your funds'}
+              {currentStep === 3 && 'Describe your savings goal for motivation'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Step 1: Currency & Amount */}
+            {currentStep === 1 && (
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="token" className="sapasafe-text-sm font-medium">
+                    Currency
+                  </Label>
+                  <Select 
+                    value={formData.token} 
+                    onValueChange={(value: string) => handleInputChange('token', value)}
+                  >
+                    <SelectTrigger className="sapasafe-input">
                       <SelectValue placeholder="Select currency" />
                     </SelectTrigger>
                     <SelectContent>
-                      {currencies.map((currency) => (
-                        <SelectItem key={currency.code} value={currency.code}>
+                      {availableCurrencies.map((currency: any) => (
+                        <SelectItem key={currency.symbol} value={currency.symbol}>
                           <div className="flex items-center gap-2">
-                            <span className="font-medium">{currency.symbol}</span>
-                            <span>{currency.name}</span>
+                            <span>{currency.logo}</span>
+                            <span>{currency.symbol} - {currency.name}</span>
                           </div>
                         </SelectItem>
                       ))}
@@ -176,167 +243,143 @@ export default function CreateVaultPage() {
                   </Select>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="goal">Savings Goal (Optional)</Label>
+                <div>
+                  <Label htmlFor="amount" className="sapasafe-text-sm font-medium">
+                    Amount
+                  </Label>
                   <Input
-                    id="goal"
-                    placeholder="e.g., Emergency Fund, Travel, etc."
-                    value={formData.goal}
-                    onChange={(e) => handleInputChange("goal", e.target.value)}
+                    id="amount"
+                    type="number"
+                    placeholder="Enter amount"
+                    value={formData.amount}
+                    onChange={(e) => handleInputChange('amount', e.target.value)}
+                    className="sapasafe-input"
                   />
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {step === 2 && (
-            <Card className="sapasafe-card">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-accent rounded-lg flex items-center justify-center">
-                    <Calendar className="h-5 w-5 text-white" />
-                  </div>
-                  <span className="sapasafe-heading-3">Lock Duration</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-2">
-                  <Label>Select Duration</Label>
-                  <div className="grid gap-3">
-                    {durations.map((duration) => (
-                      <div
-                        key={duration.value}
-                        className={`p-4 rounded-lg border cursor-pointer transition-all ${
-                          formData.duration === duration.value
-                            ? 'bg-primary/5 border-primary/20'
-                            : 'bg-muted/5 border-muted hover:bg-muted/10'
-                        }`}
-                        onClick={() => handleInputChange("duration", duration.value)}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="sapasafe-text-body font-medium">{duration.label}</span>
-                          {formData.duration === duration.value && (
-                            <CheckCircle className="h-5 w-5 text-primary" />
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="p-4 bg-warning/5 rounded-lg border border-warning/20">
-                  <div className="flex items-start gap-3">
-                    <Target className="h-5 w-5 text-warning mt-0.5" />
-                    <div>
-                      <p className="sapasafe-text-body font-semibold text-warning">Important Note</p>
-                      <p className="sapasafe-text-small text-muted-foreground mt-1">
-                        Early withdrawals will incur a penalty fee. Make sure you can commit to the full duration.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {step === 3 && (
-            <Card className="sapasafe-card">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-info rounded-lg flex items-center justify-center">
-                    <CheckCircle className="h-5 w-5 text-white" />
-                  </div>
-                  <span className="sapasafe-heading-3">Review & Create</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-4">
-                  <div className="p-4 bg-primary/5 rounded-lg border border-primary/20">
-                    <div className="flex items-center justify-between">
-                      <span className="sapasafe-text-body font-semibold">Amount</span>
-                      <span className="sapasafe-text-body font-semibold text-primary">
-                        {selectedCurrency?.symbol}{parseInt(formData.amount).toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="p-4 bg-accent/5 rounded-lg border border-accent/20">
-                    <div className="flex items-center justify-between">
-                      <span className="sapasafe-text-body font-semibold">Currency</span>
-                      <span className="sapasafe-text-body font-semibold text-accent">
-                        {selectedCurrency?.name} ({selectedCurrency?.code})
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="p-4 bg-info/5 rounded-lg border border-info/20">
-                    <div className="flex items-center justify-between">
-                      <span className="sapasafe-text-body font-semibold">Duration</span>
-                      <span className="sapasafe-text-body font-semibold text-info">
-                        {durations.find(d => d.value === formData.duration)?.label}
-                      </span>
-                    </div>
-                  </div>
-
-                  {formData.goal && (
-                    <div className="p-4 bg-success/5 rounded-lg border border-success/20">
-                      <div className="flex items-center justify-between">
-                        <span className="sapasafe-text-body font-semibold">Goal</span>
-                        <span className="sapasafe-text-body font-semibold text-success">
-                          {formData.goal}
-                        </span>
-                      </div>
-                    </div>
+                  {getSelectedCurrency() && (
+                    <p className="sapasafe-text-xs text-muted-foreground mt-1">
+                      Minimum: {Number(getSelectedCurrency()?.minAmount || 0) / 10**18} {formData.token}
+                    </p>
                   )}
                 </div>
+              </div>
+            )}
 
-                <div className="p-4 bg-warning/5 rounded-lg border border-warning/20">
-                  <div className="flex items-start gap-3">
-                    <Target className="h-5 w-5 text-warning mt-0.5" />
-                    <div>
-                      <p className="sapasafe-text-body font-semibold text-warning">Final Confirmation</p>
-                      <p className="sapasafe-text-small text-muted-foreground mt-1">
-                        By creating this vault, you agree to the terms and understand that early withdrawals will incur penalties.
-                      </p>
+            {/* Step 2: Duration */}
+            {currentStep === 2 && (
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="duration" className="sapasafe-text-sm font-medium">
+                    Lock Duration
+                  </Label>
+                  <Select 
+                    value={formData.duration} 
+                    onValueChange={(value: string) => handleInputChange('duration', value)}
+                  >
+                    <SelectTrigger className="sapasafe-input">
+                      <SelectValue placeholder="Select duration" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {durations.map((duration) => (
+                        <SelectItem key={duration.value} value={duration.value}>
+                          <div className="flex items-center gap-2">
+                            <Clock className="h-4 w-4" />
+                            <span>{duration.label}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {getSelectedDuration() && (
+                  <div className="p-4 bg-muted/30 rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Clock className="h-4 w-4 text-primary" />
+                      <span className="sapasafe-text-sm font-medium">Lock Period</span>
                     </div>
+                    <p className="sapasafe-text-sm text-muted-foreground">
+                      Your funds will be locked for {getSelectedDuration()?.days} days. 
+                      Early withdrawal will incur a penalty.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Step 3: Goal */}
+            {currentStep === 3 && (
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="goal" className="sapasafe-text-sm font-medium">
+                    Savings Goal
+                  </Label>
+                  <Input
+                    id="goal"
+                    placeholder="e.g., Emergency fund, Vacation, Business capital"
+                    value={formData.goal}
+                    onChange={(e) => handleInputChange('goal', e.target.value)}
+                    className="sapasafe-input"
+                  />
+                </div>
+
+                <div className="p-4 bg-primary/5 rounded-lg border border-primary/20">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Target className="h-4 w-4 text-primary" />
+                    <span className="sapasafe-text-sm font-medium">Vault Summary</span>
+                  </div>
+                  <div className="space-y-1 text-sm">
+                    <p><span className="text-muted-foreground">Currency:</span> {formData.token}</p>
+                    <p><span className="text-muted-foreground">Amount:</span> {formData.amount}</p>
+                    <p><span className="text-muted-foreground">Duration:</span> {getSelectedDuration()?.label}</p>
+                    <p><span className="text-muted-foreground">Goal:</span> {formData.goal}</p>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-          )}
+              </div>
+            )}
 
-          {/* Navigation Buttons */}
-          <div className="flex gap-4">
-            {step > 1 && (
+            {/* Navigation */}
+            <div className="flex justify-between pt-4">
               <Button 
                 variant="outline" 
-                className="flex-1 sapasafe-btn-outline"
                 onClick={handleBack}
+                disabled={currentStep === 1}
+                className="sapasafe-btn-outline"
               >
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Back
               </Button>
-            )}
-            
-            {step < 3 ? (
-              <Button 
-                className="flex-1 sapasafe-btn-primary"
-                onClick={handleNext}
-              >
-                Next
-                <ArrowRight className="h-4 w-4 ml-2" />
-              </Button>
-            ) : (
-              <Button 
-                className="flex-1 sapasafe-btn-accent"
-                onClick={handleCreateVault}
-              >
-                Create Vault
-                <CheckCircle className="h-4 w-4 ml-2" />
-              </Button>
-            )}
-          </div>
-        </div>
+
+              {currentStep < 3 ? (
+                <Button 
+                  onClick={handleNext}
+                  disabled={!validateStep(currentStep)}
+                  className="sapasafe-btn-primary"
+                >
+                  Next
+                  <ArrowRight className="h-4 w-4 ml-2" />
+                </Button>
+              ) : (
+                <Button 
+                  onClick={handleCreateVault}
+                  disabled={!validateStep(3) || isCreating || isVaultLoading}
+                  className="sapasafe-btn-primary"
+                >
+                  {isCreating ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <PiggyBank className="h-4 w-4 mr-2" />
+                      Create Vault
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </PageTransition>
   )

@@ -1,63 +1,63 @@
-"use client"
+'use client';
 
-import { useState, useEffect } from 'react'
-import '@rainbow-me/rainbowkit/styles.css'
-import { getDefaultConfig, RainbowKitProvider } from '@rainbow-me/rainbowkit'
-import { WagmiProvider } from 'wagmi'
-import { celo, celoAlfajores } from 'wagmi/chains'
-import { QueryClientProvider, QueryClient } from '@tanstack/react-query'
-import { http } from 'wagmi'
+import '@rainbow-me/rainbowkit/styles.css';
 
-// Create config with proper SSR handling
-let config: any = null
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import {
+  RainbowKitProvider,
+  connectorsForWallets,
+} from '@rainbow-me/rainbowkit';
+import { WagmiProvider, createConfig, http } from 'wagmi';
+import { celoAlfajores } from 'wagmi/chains';
 
-function getWagmiConfig() {
-  if (!config) {
-    config = getDefaultConfig({
-      appName: 'sapasafe',
-      projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || 'YOUR_PROJECT_ID',
-      chains: [celo, celoAlfajores],
-      transports: {
-        [celo.id]: http(),
-        [celoAlfajores.id]: http(),
-      },
-      ssr: true,
-    })
-  }
-  return config
-}
+import {
+  injectedWallet,
+  metaMaskWallet,
+  walletConnectWallet,
+  coinbaseWallet,
+  trustWallet,
+} from '@rainbow-me/rainbowkit/wallets';
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes
+const connectors = connectorsForWallets(
+  [
+    {
+      groupName: 'Recommended for Celo',
+      wallets: [
+        walletConnectWallet, // Valora works through this
+        metaMaskWallet,
+      ],
     },
-  },
-})
+    {
+      groupName: 'Popular Wallets',
+      wallets: [
+        coinbaseWallet,
+        trustWallet,
+        injectedWallet,
+      ],
+    },
+  ],
+  {
+    appName: 'SapaSafe - Secure Savings Vault',
+    projectId: process.env.NEXT_PUBLIC_WC_PROJECT_ID ?? '636fbbf256896d1aec459c53de2530f1',
+  }
+);
 
-function WalletProviderInner({ children }: { children: React.ReactNode }) {
+const config = createConfig({
+  connectors,
+  chains: [celoAlfajores],
+  transports: {
+    [celoAlfajores.id]: http(),
+  },
+});
+
+const queryClient = new QueryClient();
+
+export function AppProvider({ children }: { children: React.ReactNode }) {
   return (
-    <WagmiProvider config={getWagmiConfig()}>
+    <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
-        <RainbowKitProvider>
-          {children}
-        </RainbowKitProvider>
+        <RainbowKitProvider>{children}</RainbowKitProvider>
       </QueryClientProvider>
     </WagmiProvider>
-  )
-}
-
-export function WalletProvider({ children }: { children: React.ReactNode }) {
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  // Show children without wallet functionality during SSR
-  if (!mounted) {
-    return <>{children}</>
-  }
-
-  return <WalletProviderInner>{children}</WalletProviderInner>
+  );
 }

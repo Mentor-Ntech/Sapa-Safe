@@ -1,26 +1,29 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import { useAccount } from "wagmi"
+import { useUserProfile } from "@/Hooks"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ArrowLeft, User, Mail, Globe, ArrowRight } from "lucide-react"
+import { ArrowLeft, User, Mail, Globe, ArrowRight, Wallet } from "lucide-react"
 import { toast } from "sonner"
 import { PageTransition } from "@/components/page-transition"
 import { useNav } from "@/components/nav-context"
-import { useEffect } from "react"
 
 export default function Register() {
   const router = useRouter()
+  const { address, isConnected } = useAccount()
+  const { userProfile, saveUserProfile, isRegistered, isLoading: isProfileLoading, loadUserProfile } = useUserProfile()
   const { setShowMobileNav } = useNav()
   const [formData, setFormData] = useState({
     fullName: "",
     email: "",
     country: "",
   })
-  const [isLoading, setIsLoading] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
     // Hide mobile navigation on registration page
@@ -31,6 +34,44 @@ export default function Register() {
       setShowMobileNav(true)
     }
   }, [setShowMobileNav])
+
+  // Check if user is already registered
+  useEffect(() => {
+    if (isRegistered && userProfile) {
+      toast.info('You are already registered!')
+      router.push('/dashboard')
+    }
+  }, [isRegistered, userProfile, router])
+
+  // Not connected state
+  if (!isConnected || !address) {
+    return (
+      <PageTransition>
+        <div className="container mx-auto px-4 py-8">
+          <div className="text-center">
+            <h1 className="sapasafe-heading-1 mb-4">Connect Your Wallet</h1>
+            <p className="sapasafe-text text-muted-foreground">
+              Connect your wallet to complete registration
+            </p>
+          </div>
+        </div>
+      </PageTransition>
+    )
+  }
+
+  // Loading state
+  if (isProfileLoading) {
+    return (
+      <PageTransition>
+        <div className="container mx-auto px-4 py-8">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="sapasafe-text text-muted-foreground">Loading...</p>
+          </div>
+        </div>
+      </PageTransition>
+    )
+  }
 
   const countries = [
     { code: "NG", name: "Nigeria", flag: "🇳🇬" },
@@ -48,13 +89,29 @@ export default function Register() {
       return
     }
 
-    setIsLoading(true)
+    setIsSubmitting(true)
     
-    // Simulate API call
-    setTimeout(() => {
-      toast.success("Registration successful!")
-      router.push("/dashboard")
-    }, 2000)
+    try {
+      await saveUserProfile({
+        fullName: formData.fullName,
+        email: formData.email,
+        country: formData.country
+      })
+
+      toast.success("Registration successful! Welcome to SapaSafe!")
+      
+      // Force reload profile and wait a bit before navigation
+      await loadUserProfile()
+      setTimeout(() => {
+        router.push("/dashboard")
+      }, 500)
+      
+    } catch (error) {
+      console.error('Registration error:', error)
+      toast.error("Registration failed. Please try again.")
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -85,6 +142,17 @@ export default function Register() {
               <p className="sapasafe-text-small text-muted-foreground">
                 Complete your profile to start your savings journey
               </p>
+              
+              {/* Wallet Info */}
+              <div className="mt-4 p-3 bg-muted/30 rounded-lg">
+                <div className="flex items-center gap-2 justify-center">
+                  <Wallet className="h-4 w-4 text-primary" />
+                  <span className="sapasafe-text-sm font-medium">Connected Wallet</span>
+                </div>
+                <p className="sapasafe-text-xs text-muted-foreground mt-1">
+                  {address.slice(0, 6)}...{address.slice(-4)}
+                </p>
+              </div>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-6">
@@ -155,9 +223,9 @@ export default function Register() {
               <Button
                 type="submit"
                 className="w-full sapasafe-btn-primary"
-                disabled={isLoading}
+                disabled={isSubmitting}
               >
-                {isLoading ? (
+                {isSubmitting ? (
                   <div className="flex items-center gap-2">
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                     Creating Account...

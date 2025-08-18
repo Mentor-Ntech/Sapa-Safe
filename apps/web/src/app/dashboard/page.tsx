@@ -1,190 +1,498 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Plus, TrendingUp, Clock, Wallet, ArrowRight } from "lucide-react"
-import { DashboardSkeleton } from "@/components/dashboard-skeleton"
+import { useVaults, useTransactions, useUserProfile } from "@/Hooks"
+import { useAccount, useChainId } from "wagmi"
 import { PageTransition } from "@/components/page-transition"
+import { DashboardSkeleton } from "@/components/dashboard-skeleton"
+import { EmptyState } from "@/components/empty-state"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { 
+  Plus, 
+  TrendingUp, 
+  Wallet, 
+  Clock, 
+  Target,
+  ArrowRight,
+  PiggyBank,
+  Shield,
+  Zap,
+  User,
+  CheckCircle
+} from "lucide-react"
+import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 
-export default function DashboardPage() {
+export default function Dashboard() {
   const router = useRouter()
-  const [isLoading, setIsLoading] = useState(true)
+  const { address, isConnected } = useAccount()
+  const chainId = useChainId()
+  const { 
+    vaultFactory, 
+    tokenRegistry, 
+    getUserVaults, 
+    getVaultAnalytics,
+    isLoading,
+    hasError 
+  } = useVaults()
+  const { getTransactionStats, hasPendingTransactions } = useTransactions()
+  const { userProfile, isRegistered, isLoading: isProfileLoading } = useUserProfile()
+  
+  const [userVaults, setUserVaults] = useState<any[]>([])
+  const [analytics, setAnalytics] = useState<any>(null)
+  const [isLoadingData, setIsLoadingData] = useState(true)
 
+  // Load user data
   useEffect(() => {
-    // Simulate loading time
-    const timer = setTimeout(() => {
-      setIsLoading(false)
-    }, 1500)
+    const loadDashboardData = async () => {
+      if (!isConnected || !address) {
+        console.log('Not connected or no address')
+        setIsLoadingData(false)
+        return
+      }
 
-    return () => clearTimeout(timer)
-  }, [])
+      try {
+        // console.log('Loading dashboard data...')
+        setIsLoadingData(true)
+        
+        // Add timeout to prevent infinite loading
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Data loading timeout')), 10000)
+        })
+        
+        // Get user vaults with timeout
+        const vaultsPromise = getUserVaults()
+        const vaults = await Promise.race([vaultsPromise, timeoutPromise]) as any[]
+        // console.log('Dashboard vaults:', vaults)
+        setUserVaults(Array.isArray(vaults) ? vaults : [])
+
+        // Get analytics for first vault if exists
+        if (vaults && Array.isArray(vaults) && vaults.length > 0) {
+          const firstVaultAnalytics = await getVaultAnalytics(vaults[0])
+          setAnalytics(firstVaultAnalytics)
+        }
+
+      } catch (error) {
+        console.error('Error loading dashboard data:', error)
+        toast.error('Failed to load dashboard data')
+        // Set empty vaults to prevent infinite loading
+        setUserVaults([])
+      } finally {
+        // console.log('Dashboard data loading complete')
+        setIsLoadingData(false)
+      }
+    }
+
+    loadDashboardData()
+  }, [isConnected, address, userProfile, isRegistered, isProfileLoading, getUserVaults, getVaultAnalytics])
 
   const handleCreateVault = () => {
-    toast.success("Redirecting to vault creation...")
-    router.push("/create-vault")
+    router.push('/create-vault')
   }
 
-  const handleViewVaults = () => {
-    toast.info("Loading your vaults...")
-    router.push("/vaults")
+  const handleViewAllVaults = () => {
+    router.push('/vaults')
   }
 
-  if (isLoading) {
+  const handleViewVault = (vaultAddress: string) => {
+    router.push(`/vault-details/${vaultAddress}`)
+  }
+
+  // Loading state with timeout
+  // console.log('Loading states:', { isLoadingData, isLoading, isProfileLoading })
+  
+  // Add a timeout to prevent infinite loading
+  const [loadingTimeout, setLoadingTimeout] = useState(false)
+  
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setLoadingTimeout(true)
+    }, 15000) // 15 seconds timeout
+    
+    return () => clearTimeout(timer)
+  }, [])
+  
+  if ((isLoadingData || isLoading || isProfileLoading) && !loadingTimeout) {
+    // console.log('Showing dashboard skeleton')
     return <DashboardSkeleton />
   }
 
-  return (
-    <PageTransition>
-      <div className="min-h-screen bg-background pb-20">
-        {/* Header */}
-        <div className="bg-primary text-white px-4 py-8">
-          <div>
-            <h1 className="sapasafe-heading-2 mb-2">Welcome back, John! 👋</h1>
-            <p className="sapasafe-text-large opacity-90">Ready to beat Sapa today?</p>
+  // Not connected state
+  if (!isConnected) {
+    return (
+      <PageTransition>
+        <div className="container mx-auto px-4 py-8">
+          <div className="text-center">
+            <h1 className="sapasafe-heading-1 mb-4">Connect Your Wallet</h1>
+            <p className="sapasafe-text text-muted-foreground">
+              Connect your wallet to start saving with SapaSafe
+            </p>
           </div>
         </div>
+      </PageTransition>
+    )
+  }
 
-        <div className="px-4 py-6 space-y-6">
-          {/* Quick Stats */}
-          <div className="grid grid-cols-2 gap-4">
-            <Card className="sapasafe-card sapasafe-card-interactive">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="sapasafe-text-small mb-1">Total Saved</p>
-                    <p className="sapasafe-heading-2 text-primary">₦125,000</p>
-                    <p className="sapasafe-text-caption text-success">+15% this month</p>
-                  </div>
-                  <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
-                    <TrendingUp className="h-6 w-6 text-primary" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+  // Network check - ensure we're on Alfajores
+  if (chainId !== 44787) {
+    return (
+      <PageTransition>
+        <div className="container mx-auto px-4 py-8">
+          <div className="text-center">
+            <h1 className="sapasafe-heading-1 mb-4">Switch to Alfajores</h1>
+            <p className="sapasafe-text text-muted-foreground mb-6">
+              SapaSafe is currently only available on Celo Alfajores testnet
+            </p>
+            <Button 
+              onClick={() => window.open('https://docs.celo.org/network/alfajores', '_blank')}
+              className="sapasafe-btn-primary"
+            >
+              Learn How to Switch Networks
+            </Button>
+          </div>
+        </div>
+      </PageTransition>
+    )
+  }
 
-            <Card className="sapasafe-card sapasafe-card-interactive">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="sapasafe-text-small mb-1">Active Vaults</p>
-                    <p className="sapasafe-heading-2 text-accent">3</p>
-                    <p className="sapasafe-text-caption text-success">All on track</p>
-                  </div>
-                  <div className="w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center">
-                    <Wallet className="h-6 w-6 text-accent" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+  // Not registered state
+  if (!isRegistered) {
+    return (
+      <PageTransition>
+        <div className="container mx-auto px-4 py-8">
+          <div className="max-w-2xl mx-auto">
+            <EmptyState
+              icon={<User className="h-12 w-12" />}
+              title="Complete Your Registration"
+              description="Please complete your profile to start using SapaSafe"
+              actionLabel="Complete Registration"
+              onAction={() => router.push('/register')}
+            />
+          </div>
+        </div>
+      </PageTransition>
+    )
+  }
+
+  // No vaults state - show main dashboard with welcome message
+  if (userVaults.length === 0) {
+    return (
+      <PageTransition>
+        <div className="container mx-auto px-4 py-8">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8">
+            <div>
+              <h1 className="sapasafe-heading-1">
+                Welcome to SapaSafe, {userProfile?.fullName || 'Saver'}! 🎉
+              </h1>
+              <p className="sapasafe-text text-muted-foreground">
+                You're all set up! Ready to start your savings journey?
+              </p>
+            </div>
+            <div className="flex gap-2 mt-4 sm:mt-0">
+              <Button onClick={handleCreateVault} className="sapasafe-btn-primary">
+                <Plus className="mr-2 h-4 w-4" />
+                Create Your First Vault
+              </Button>
+            </div>
           </div>
 
-          {/* Create Vault CTA */}
-          <Card className="sapasafe-card sapasafe-card-interactive bg-primary/5 border-primary/20">
+          {/* Welcome Card */}
+          <Card className="sapasafe-card mb-8">
             <CardContent className="p-6">
               <div className="text-center">
-                <div className="w-16 h-16 bg-primary rounded-lg flex items-center justify-center mx-auto mb-4 shadow-sm">
-                  <Plus className="h-8 w-8 text-white" />
+                <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <PiggyBank className="h-8 w-8 text-primary" />
                 </div>
-                <h3 className="sapasafe-heading-3 mb-2">Start a New Savings Goal</h3>
-                <p className="sapasafe-text-small mb-4 max-w-md mx-auto">
-                  Lock your funds and build wealth with discipline. Choose from multiple African currencies.
+                <h2 className="sapasafe-heading-2 mb-2">Start Your Savings Journey</h2>
+                <p className="sapasafe-text text-muted-foreground mb-6">
+                  Create your first savings vault to begin building financial discipline and achieve your goals.
                 </p>
-                <Button 
-                  className="sapasafe-btn-primary w-full"
-                  onClick={handleCreateVault}
-                >
-                  Create New Vault
-                  <ArrowRight className="h-4 w-4 ml-2" />
+                <Button onClick={handleCreateVault} size="lg" className="sapasafe-btn-primary">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create Your First Vault
                 </Button>
               </div>
             </CardContent>
           </Card>
 
-          {/* Active Vaults Preview */}
-          <Card className="sapasafe-card">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                  <Clock className="h-5 w-5 text-white" />
+          {/* Quick Stats (empty state) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <Card className="sapasafe-card">
+              <CardHeader className="pb-3">
+                <CardTitle className="sapasafe-heading-4 flex items-center gap-2">
+                  <Wallet className="h-5 w-5 text-primary" />
+                  Active Vaults
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="sapasafe-heading-2 text-primary">0</p>
+                <p className="sapasafe-text-xs text-muted-foreground">No vaults yet</p>
+              </CardContent>
+            </Card>
+
+            <Card className="sapasafe-card">
+              <CardHeader className="pb-3">
+                <CardTitle className="sapasafe-heading-4 flex items-center gap-2">
+                  <Target className="h-5 w-5 text-success" />
+                  Total Saved
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="sapasafe-heading-2 text-success">0</p>
+                <p className="sapasafe-text-xs text-muted-foreground">Start saving today</p>
+              </CardContent>
+            </Card>
+
+            <Card className="sapasafe-card">
+              <CardHeader className="pb-3">
+                <CardTitle className="sapasafe-heading-4 flex items-center gap-2">
+                  <CheckCircle className="h-5 w-5 text-success" />
+                  Completed
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="sapasafe-heading-2 text-success">0</p>
+                <p className="sapasafe-text-xs text-muted-foreground">Goals achieved</p>
+              </CardContent>
+            </Card>
+
+            <Card className="sapasafe-card">
+              <CardHeader className="pb-3">
+                <CardTitle className="sapasafe-heading-4 flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5 text-primary" />
+                  Success Rate
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="sapasafe-heading-2 text-primary">-</p>
+                <p className="sapasafe-text-xs text-muted-foreground">Create vaults to see</p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </PageTransition>
+    )
+  }
+
+  // Calculate quick stats
+  const activeVaults = userVaults.filter(vault => vault.status === 'LOCKED')
+  const completedVaults = userVaults.filter(vault => vault.status === 'WITHDRAWN_COMPLETED')
+  const totalSaved = userVaults.reduce((sum, vault) => sum + (vault.balance || 0n), 0n)
+  const transactionStats = getTransactionStats()
+
+  return (
+    <PageTransition>
+      <div className="container mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8">
+          <div>
+            <h1 className="sapasafe-heading-1">
+              Welcome back, {userProfile?.fullName || 'Saver'}! 👋
+            </h1>
+            <p className="sapasafe-text text-muted-foreground">
+              Track your savings progress and manage your vaults
+            </p>
+          </div>
+          <div className="flex gap-2 mt-4 sm:mt-0">
+            <Button onClick={handleCreateVault} className="sapasafe-btn-primary">
+              <Plus className="mr-2 h-4 w-4" />
+              Create Vault
+            </Button>
+          </div>
+        </div>
+
+        {/* Pending Transactions Alert */}
+        {hasPendingTransactions && (
+          <Card className="sapasafe-card mb-6 border-warning/20 bg-warning/5">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <Clock className="h-5 w-5 text-warning" />
+                <div>
+                  <p className="sapasafe-text-sm font-medium text-warning">
+                    You have pending transactions
+                  </p>
+                  <p className="sapasafe-text-xs text-muted-foreground">
+                    Some of your vault operations are being processed
+                  </p>
                 </div>
-                <span className="sapasafe-heading-3">Active Vaults</span>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Quick Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <Card className="sapasafe-card">
+            <CardHeader className="pb-3">
+              <CardTitle className="sapasafe-heading-4 flex items-center gap-2">
+                <Wallet className="h-5 w-5 text-primary" />
+                Active Vaults
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="sapasafe-card-interactive p-4 currency-ngn rounded-lg">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="sapasafe-text-large font-semibold">cNGN Vault</p>
-                    <p className="sapasafe-text-small">₦50,000 • 3 months left</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="sapasafe-text-small font-semibold text-success">On Track</p>
-                    <div className="sapasafe-progress mt-1">
-                      <div className="sapasafe-progress-bar" style={{ width: '65%' }}></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="sapasafe-card-interactive p-4 currency-ghs rounded-lg">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="sapasafe-text-large font-semibold">cGHS Vault</p>
-                    <p className="sapasafe-text-small">₵2,000 • 1 month left</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="sapasafe-text-small font-semibold text-warning">Almost Done</p>
-                    <div className="sapasafe-progress mt-1">
-                      <div className="sapasafe-progress-bar" style={{ width: '85%' }}></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <Button 
-                variant="outline" 
-                className="w-full sapasafe-btn-outline"
-                onClick={handleViewVaults}
-              >
-                View All Vaults
-                <ArrowRight className="h-4 w-4 ml-2" />
-              </Button>
+            <CardContent>
+              <div className="sapasafe-heading-2">{activeVaults.length}</div>
+              <p className="sapasafe-text-xs text-muted-foreground">
+                Currently locked vaults
+              </p>
             </CardContent>
           </Card>
 
-          {/* Recent Activity */}
           <Card className="sapasafe-card">
-            <CardHeader>
-              <CardTitle className="sapasafe-heading-3">Recent Activity</CardTitle>
+            <CardHeader className="pb-3">
+              <CardTitle className="sapasafe-heading-4 flex items-center gap-2">
+                <Target className="h-5 w-5 text-success" />
+                Total Saved
+              </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center gap-4 p-3 bg-success/5 rounded-lg border border-success/20">
-                <div className="w-3 h-3 bg-success rounded-full"></div>
-                <div className="flex-1">
-                  <p className="sapasafe-text-body font-medium">Vault Created</p>
-                  <p className="sapasafe-text-caption">cNGN Vault • 2 days ago</p>
-                </div>
-                <div className="text-right">
-                  <p className="sapasafe-text-body font-semibold text-success">+₦50,000</p>
-                </div>
+            <CardContent>
+              <div className="sapasafe-heading-2">
+                {totalSaved ? `${Number(totalSaved) / 10**18}` : '0'} 
               </div>
+              <p className="sapasafe-text-xs text-muted-foreground">
+                Across all vaults
+              </p>
+            </CardContent>
+          </Card>
 
-              <div className="flex items-center gap-4 p-3 bg-info/5 rounded-lg border border-info/20">
-                <div className="w-3 h-3 bg-info rounded-full"></div>
-                <div className="flex-1">
-                  <p className="sapasafe-text-body font-medium">Vault Completed</p>
-                  <p className="sapasafe-text-caption">cKES Vault • 1 week ago</p>
-                </div>
-                <div className="text-right">
-                  <p className="sapasafe-text-body font-semibold text-info">+KSh 100,000</p>
-                </div>
+          <Card className="sapasafe-card">
+            <CardHeader className="pb-3">
+              <CardTitle className="sapasafe-heading-4 flex items-center gap-2">
+                <Shield className="h-5 w-5 text-accent" />
+                Completed
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="sapasafe-heading-2">{completedVaults.length}</div>
+              <p className="sapasafe-text-xs text-muted-foreground">
+                Successfully completed vaults
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="sapasafe-card">
+            <CardHeader className="pb-3">
+              <CardTitle className="sapasafe-heading-4 flex items-center gap-2">
+                <Zap className="h-5 w-5 text-info" />
+                Success Rate
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="sapasafe-heading-2">
+                {transactionStats.successRate.toFixed(1)}%
               </div>
+              <p className="sapasafe-text-xs text-muted-foreground">
+                Transaction success rate
+              </p>
             </CardContent>
           </Card>
         </div>
+
+        {/* Active Vaults Preview */}
+        <Card className="sapasafe-card mb-8">
+          <CardHeader>
+            <div className="flex justify-between items-center">
+              <div>
+                <CardTitle className="sapasafe-heading-3">Active Vaults</CardTitle>
+                <CardDescription>
+                  Your currently locked savings vaults
+                </CardDescription>
+              </div>
+              <Button 
+                variant="ghost" 
+                onClick={handleViewAllVaults}
+                className="sapasafe-btn-outline"
+              >
+                View All
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {activeVaults.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="sapasafe-text text-muted-foreground">
+                  No active vaults. Create your first vault to start saving!
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {activeVaults.slice(0, 3).map((vault, index) => (
+                  <div 
+                    key={index}
+                    className="flex items-center justify-between p-4 rounded-lg border border-border hover:bg-muted/50 transition-colors cursor-pointer"
+                    onClick={() => handleViewVault(vault.address)}
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                        <PiggyBank className="h-6 w-6 text-primary" />
+                      </div>
+                      <div>
+                        <h4 className="sapasafe-heading-4">
+                          Vault #{index + 1}
+                        </h4>
+                        <p className="sapasafe-text-sm text-muted-foreground">
+                          {vault.token} • {vault.duration} days
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="sapasafe-heading-4">
+                        {vault.balance ? `${Number(vault.balance) / 10**18}` : '0'}
+                      </div>
+                      <Badge variant="secondary" className="sapasafe-status-info">
+                        Active
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Recent Activity */}
+        <Card className="sapasafe-card">
+          <CardHeader>
+            <CardTitle className="sapasafe-heading-3">Recent Activity</CardTitle>
+            <CardDescription>
+              Your latest vault operations and transactions
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {transactionStats.total === 0 ? (
+                <div className="text-center py-8">
+                  <p className="sapasafe-text text-muted-foreground">
+                    No recent activity. Create a vault to get started!
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {/* This would show actual transaction history */}
+                  <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-success/10 flex items-center justify-center">
+                        <Plus className="h-4 w-4 text-success" />
+                      </div>
+                      <div>
+                        <p className="sapasafe-text-sm font-medium">Vault Created</p>
+                        <p className="sapasafe-text-xs text-muted-foreground">
+                          {new Date().toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                    <Badge variant="secondary" className="sapasafe-status-success">
+                      Success
+                    </Badge>
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </PageTransition>
   )

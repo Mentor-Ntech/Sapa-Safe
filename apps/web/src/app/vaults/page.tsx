@@ -1,261 +1,391 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Plus, Clock, CheckCircle, AlertTriangle, ArrowRight } from "lucide-react"
-import { EmptyState } from "@/components/empty-state"
+import { useState, useEffect } from "react"
+import { useVaults, useTransactions } from "@/Hooks"
+import { useAccount } from "wagmi"
 import { PageTransition } from "@/components/page-transition"
+import { EmptyState } from "@/components/empty-state"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { 
+  Plus, 
+  Eye, 
+  AlertTriangle, 
+  Clock,
+  PiggyBank,
+  CheckCircle,
+  XCircle,
+  ArrowRight,
+  RefreshCw
+} from "lucide-react"
+import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-
-// Mock data - in real app this would come from API
-const mockVaults = [
-  {
-    id: "1",
-    token: "cNGN",
-    amount: "50000",
-    status: "active",
-    daysRemaining: 45,
-    progress: 65,
-  },
-  {
-    id: "2", 
-    token: "cGHS",
-    amount: "2000",
-    status: "active",
-    daysRemaining: 15,
-    progress: 85,
-  },
-  {
-    id: "3",
-    token: "cKES", 
-    amount: "100000",
-    status: "completed",
-    daysRemaining: 0,
-    progress: 100,
-  },
-  {
-    id: "4",
-    token: "cNGN",
-    amount: "25000", 
-    status: "early-withdrawn",
-    daysRemaining: 0,
-    progress: 30,
-  }
-]
 
 export default function VaultsPage() {
   const router = useRouter()
-  const [vaults] = useState(mockVaults)
+  const { address, isConnected } = useAccount()
+  const { 
+    vaultFactory, 
+    getUserVaults, 
+    getVaultAnalytics,
+    withdrawFromVault,
+    refreshVaultData,
+    isLoading,
+    hasError 
+  } = useVaults()
+  const { addTransaction, hasPendingTransactions } = useTransactions()
+  
+  const [userVaults, setUserVaults] = useState<any[]>([])
+  const [isLoadingData, setIsLoadingData] = useState(true)
 
-  const activeVaults = vaults.filter(v => v.status === "active")
-  const completedVaults = vaults.filter(v => v.status === "completed")
-  const earlyWithdrawnVaults = vaults.filter(v => v.status === "early-withdrawn")
+  // Load user vaults
+  useEffect(() => {
+    const loadVaults = async () => {
+      if (!isConnected || !address) {
+        setIsLoadingData(false)
+        return
+      }
+
+      try {
+        setIsLoadingData(true)
+        const vaults = await getUserVaults()
+        setUserVaults(Array.isArray(vaults) ? vaults : [])
+      } catch (error) {
+        console.error('Error loading vaults:', error)
+        toast.error('Failed to load vaults')
+      } finally {
+        setIsLoadingData(false)
+      }
+    }
+
+    loadVaults()
+  }, [isConnected, address, getUserVaults])
 
   const handleCreateVault = () => {
-    toast.success("Creating new vault...")
-    router.push("/create-vault")
+    router.push('/create-vault')
   }
 
-  const handleViewDetails = (id: string) => {
-    toast.info("Loading vault details...")
-    router.push(`/vault-details/${id}`)
+  const handleViewDetails = (vaultAddress: string) => {
+    router.push(`/vault-details/${vaultAddress}`)
+  }
+
+  const handleRefresh = async () => {
+    try {
+      await refreshVaultData()
+      toast.success('Vault data refreshed')
+    } catch (error) {
+      console.error('Error refreshing vault data:', error)
+      toast.error('Failed to refresh vault data')
+    }
+  }
+
+  const handleEarlyWithdraw = async (vaultAddress: string, amount: bigint) => {
+    try {
+      await withdrawFromVault(vaultAddress as `0x${string}`, true)
+      
+      addTransaction({
+        hash: '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`,
+        type: 'emergency_withdraw',
+        status: 'pending',
+        description: 'Early withdrawal with penalty',
+        metadata: { vaultAddress, amount: amount.toString() }
+      })
+      
+      toast.success('Early withdrawal initiated')
+    } catch (error) {
+      console.error('Error with early withdrawal:', error)
+      toast.error('Failed to process early withdrawal')
+    }
   }
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "active": return "sapasafe-status-info"
-      case "completed": return "sapasafe-status-success"
-      case "early-withdrawn": return "sapasafe-status-error"
-      default: return "bg-gray-100 text-gray-800"
+      case 'LOCKED':
+        return 'sapasafe-status-info'
+      case 'WITHDRAWN_COMPLETED':
+        return 'sapasafe-status-success'
+      case 'WITHDRAWN_EARLY':
+        return 'sapasafe-status-error'
+      default:
+        return 'sapasafe-status-info'
     }
   }
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case "active": return <Clock className="h-4 w-4" />
-      case "completed": return <CheckCircle className="h-4 w-4" />
-      case "early-withdrawn": return <AlertTriangle className="h-4 w-4" />
-      default: return <Clock className="h-4 w-4" />
+      case 'LOCKED':
+        return <Clock className="h-4 w-4" />
+      case 'WITHDRAWN_COMPLETED':
+        return <CheckCircle className="h-4 w-4" />
+      case 'WITHDRAWN_EARLY':
+        return <XCircle className="h-4 w-4" />
+      default:
+        return <Clock className="h-4 w-4" />
     }
   }
 
-  const formatAmount = (amount: string, token: string) => {
-    const num = parseInt(amount)
-    if (token === "cNGN") return `₦${num.toLocaleString()}`
-    if (token === "cGHS") return `₵${num.toLocaleString()}`
-    if (token === "cKES") return `KSh ${num.toLocaleString()}`
-    return `${amount} ${token}`
+  const formatAmount = (amount: bigint, decimals: number = 18) => {
+    if (!amount) return '0'
+    return (Number(amount) / 10**decimals).toFixed(2)
   }
+
+  // Loading state
+  if (isLoadingData || isLoading) {
+    return (
+      <PageTransition>
+        <div className="container mx-auto px-4 py-8">
+          <div className="animate-pulse space-y-6">
+            <div className="h-8 bg-muted rounded w-1/4"></div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-48 bg-muted rounded-lg"></div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </PageTransition>
+    )
+  }
+
+  // Not connected state
+  if (!isConnected) {
+    return (
+      <PageTransition>
+        <div className="container mx-auto px-4 py-8">
+          <div className="text-center">
+            <h1 className="sapasafe-heading-1 mb-4">Connect Your Wallet</h1>
+            <p className="sapasafe-text text-muted-foreground">
+              Connect your wallet to view your savings vaults
+            </p>
+          </div>
+        </div>
+      </PageTransition>
+    )
+  }
+
+  // No vaults state
+  if (userVaults.length === 0) {
+    return (
+      <PageTransition>
+        <div className="container mx-auto px-4 py-8">
+          <div className="max-w-2xl mx-auto">
+            <EmptyState
+              icon={<PiggyBank className="h-12 w-12" />}
+              title="No Vaults Found"
+              description="You haven't created any savings vaults yet. Start your savings journey today!"
+              actionLabel="Create Your First Vault"
+              onAction={handleCreateVault}
+            />
+          </div>
+        </div>
+      </PageTransition>
+    )
+  }
+
+  // Categorize vaults
+  const activeVaults = userVaults.filter(vault => vault.status === 'LOCKED')
+  const completedVaults = userVaults.filter(vault => vault.status === 'WITHDRAWN_COMPLETED')
+  const earlyWithdrawnVaults = userVaults.filter(vault => vault.status === 'WITHDRAWN_EARLY')
 
   return (
     <PageTransition>
-      <div className="min-h-screen bg-background pb-20">
+      <div className="container mx-auto px-4 py-8">
         {/* Header */}
-        <div className="bg-primary text-white px-4 py-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="sapasafe-heading-2 mb-2">My Vaults</h1>
-              <p className="sapasafe-text-large opacity-90">Manage your savings goals</p>
-            </div>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8">
+          <div>
+            <h1 className="sapasafe-heading-1">My Vaults</h1>
+            <p className="sapasafe-text text-muted-foreground">
+              Manage your savings vaults and track your progress
+            </p>
+          </div>
+          <div className="flex gap-2 mt-4 sm:mt-0">
             <Button 
-              className="sapasafe-btn-accent"
-              onClick={handleCreateVault}
+              onClick={handleRefresh} 
+              variant="outline" 
+              className="sapasafe-btn-outline"
+              disabled={isLoading}
             >
-              <Plus className="h-4 w-4 mr-2" />
-              Create
+              <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+            <Button onClick={handleCreateVault} className="sapasafe-btn-primary">
+              <Plus className="mr-2 h-4 w-4" />
+              Create Vault
             </Button>
           </div>
         </div>
 
-        <div className="px-4 py-6 space-y-6">
-          {/* Active Vaults */}
-          <div>
+        {/* Pending Transactions Alert */}
+        {hasPendingTransactions && (
+          <Card className="sapasafe-card mb-6 border-warning/20 bg-warning/5">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <Clock className="h-5 w-5 text-warning" />
+                <div>
+                  <p className="sapasafe-text-sm font-medium text-warning">
+                    You have pending transactions
+                  </p>
+                  <p className="sapasafe-text-xs text-muted-foreground">
+                    Some of your vault operations are being processed
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Active Vaults */}
+        {activeVaults.length > 0 && (
+          <div className="mb-8">
             <h2 className="sapasafe-heading-3 mb-4">Active Vaults</h2>
-            {activeVaults.length > 0 ? (
-              <div className="space-y-4">
-                {activeVaults.map((vault) => (
-                  <Card key={vault.id} className="sapasafe-card sapasafe-card-interactive">
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
-                            <span className="sapasafe-text-large font-bold">{vault.token}</span>
-                          </div>
-                          <div>
-                            <p className="sapasafe-text-body font-semibold">
-                              {formatAmount(vault.amount, vault.token)}
-                            </p>
-                            <p className="sapasafe-text-small text-muted-foreground">
-                              {vault.daysRemaining} days remaining
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <Badge className={getStatusColor(vault.status)}>
-                            {getStatusIcon(vault.status)}
-                            <span className="ml-1 capitalize">{vault.status}</span>
-                          </Badge>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => handleViewDetails(vault.id)}
-                          >
-                            <ArrowRight className="h-4 w-4" />
-                          </Button>
-                        </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {activeVaults.map((vault, index) => (
+                <Card key={index} className="sapasafe-card">
+                  <CardHeader>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <CardTitle className="sapasafe-heading-4">
+                          Vault #{index + 1}
+                        </CardTitle>
+                        <CardDescription>
+                          {vault.token} • {vault.duration} days
+                        </CardDescription>
                       </div>
-                      <div className="mt-3">
-                        <div className="flex justify-between sapasafe-text-small mb-1">
-                          <span>Progress</span>
-                          <span>{vault.progress}%</span>
-                        </div>
-                        <div className="sapasafe-progress">
-                          <div 
-                            className="sapasafe-progress-bar" 
-                            style={{ width: `${vault.progress}%` }}
-                          ></div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            ) : (
-              <EmptyState
-                title="No Active Vaults"
-                description="Start your savings journey by creating your first vault. Set your goals and watch your wealth grow."
-                variant="vaults"
-                actionLabel="Create Your First Vault"
-                onAction={handleCreateVault}
-              />
-            )}
+                      <Badge className={getStatusColor(vault.status)}>
+                        {getStatusIcon(vault.status)}
+                        Active
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <span className="sapasafe-text-sm text-muted-foreground">Balance</span>
+                      <span className="sapasafe-heading-4">
+                        {formatAmount(vault.balance || 0n)}
+                      </span>
+                    </div>
+                    
+                    <div className="flex gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="flex-1 sapasafe-btn-outline"
+                        onClick={() => handleViewDetails(vault.address)}
+                      >
+                        <Eye className="mr-2 h-4 w-4" />
+                        View Details
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="flex-1 border-error/20 text-error hover:bg-error/5"
+                        onClick={() => handleEarlyWithdraw(vault.address, vault.balance || 0n)}
+                      >
+                        <AlertTriangle className="mr-2 h-4 w-4" />
+                        Early Withdraw
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           </div>
+        )}
 
-          {/* Completed Vaults */}
-          {completedVaults.length > 0 && (
-            <div>
-              <h2 className="sapasafe-heading-3 mb-4">Completed Vaults</h2>
-              <div className="space-y-4">
-                {completedVaults.map((vault) => (
-                  <Card key={vault.id} className="sapasafe-card">
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 bg-success/10 rounded-lg flex items-center justify-center">
-                            <span className="sapasafe-text-large font-bold">{vault.token}</span>
-                          </div>
-                          <div>
-                            <p className="sapasafe-text-body font-semibold">
-                              {formatAmount(vault.amount, vault.token)}
-                            </p>
-                            <p className="sapasafe-text-small text-success">Successfully completed</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <Badge className={getStatusColor(vault.status)}>
-                            {getStatusIcon(vault.status)}
-                            <span className="ml-1 capitalize">{vault.status}</span>
-                          </Badge>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => handleViewDetails(vault.id)}
-                          >
-                            <ArrowRight className="h-4 w-4" />
-                          </Button>
-                        </div>
+        {/* Completed Vaults */}
+        {completedVaults.length > 0 && (
+          <div className="mb-8">
+            <h2 className="sapasafe-heading-3 mb-4">Completed Vaults</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {completedVaults.map((vault, index) => (
+                <Card key={index} className="sapasafe-card">
+                  <CardHeader>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <CardTitle className="sapasafe-heading-4">
+                          Vault #{index + 1}
+                        </CardTitle>
+                        <CardDescription>
+                          {vault.token} • Completed
+                        </CardDescription>
                       </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+                      <Badge className={getStatusColor(vault.status)}>
+                        {getStatusIcon(vault.status)}
+                        Completed
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex justify-between items-center mb-4">
+                      <span className="sapasafe-text-sm text-muted-foreground">Final Amount</span>
+                      <span className="sapasafe-heading-4">
+                        {formatAmount(vault.balance || 0n)}
+                      </span>
+                    </div>
+                    
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="w-full sapasafe-btn-outline"
+                      onClick={() => handleViewDetails(vault.address)}
+                    >
+                      <Eye className="mr-2 h-4 w-4" />
+                      View Details
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
-          )}
+          </div>
+        )}
 
-          {/* Early Withdrawn Vaults */}
-          {earlyWithdrawnVaults.length > 0 && (
-            <div>
-              <h2 className="sapasafe-heading-3 mb-4">Early Withdrawn</h2>
-              <div className="space-y-4">
-                {earlyWithdrawnVaults.map((vault) => (
-                  <Card key={vault.id} className="sapasafe-card">
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 bg-error/10 rounded-lg flex items-center justify-center">
-                            <span className="sapasafe-text-large font-bold">{vault.token}</span>
-                          </div>
-                          <div>
-                            <p className="sapasafe-text-body font-semibold">
-                              {formatAmount(vault.amount, vault.token)}
-                            </p>
-                            <p className="sapasafe-text-small text-error">Early withdrawal (penalty applied)</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <Badge className={getStatusColor(vault.status)}>
-                            {getStatusIcon(vault.status)}
-                            <span className="ml-1 capitalize">{vault.status}</span>
-                          </Badge>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => handleViewDetails(vault.id)}
-                          >
-                            <ArrowRight className="h-4 w-4" />
-                          </Button>
-                        </div>
+        {/* Early Withdrawn Vaults */}
+        {earlyWithdrawnVaults.length > 0 && (
+          <div className="mb-8">
+            <h2 className="sapasafe-heading-3 mb-4">Early Withdrawn Vaults</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {earlyWithdrawnVaults.map((vault, index) => (
+                <Card key={index} className="sapasafe-card">
+                  <CardHeader>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <CardTitle className="sapasafe-heading-4">
+                          Vault #{index + 1}
+                        </CardTitle>
+                        <CardDescription>
+                          {vault.token} • Early Withdrawn
+                        </CardDescription>
                       </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+                      <Badge className={getStatusColor(vault.status)}>
+                        {getStatusIcon(vault.status)}
+                        Early Withdrawn
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex justify-between items-center mb-4">
+                      <span className="sapasafe-text-sm text-muted-foreground">Amount Returned</span>
+                      <span className="sapasafe-heading-4">
+                        {formatAmount(vault.balance || 0n)}
+                      </span>
+                    </div>
+                    
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="w-full sapasafe-btn-outline"
+                      onClick={() => handleViewDetails(vault.address)}
+                    >
+                      <Eye className="mr-2 h-4 w-4" />
+                      View Details
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </PageTransition>
   )
