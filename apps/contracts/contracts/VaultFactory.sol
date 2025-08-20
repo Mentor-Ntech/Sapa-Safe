@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./TokenRegistry.sol";
@@ -15,7 +13,7 @@ import "./SavingsVault.sol";
  * @title VaultFactory
  * @dev Factory contract for creating and managing SapaSafe vaults
  */
-contract VaultFactory is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, UUPSUpgradeable {
+contract VaultFactory is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
     
     // Contract dependencies
@@ -58,6 +56,14 @@ contract VaultFactory is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     
     GlobalAnalytics public globalAnalytics;
     
+    // Emergency pause functionality
+    bool public paused;
+    
+    modifier whenNotPaused() {
+        require(!paused, "Contract is paused");
+        _;
+    }
+    
     // Vault counter
     uint256 public vaultCounter;
     
@@ -77,8 +83,10 @@ contract VaultFactory is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     event TokenRegistryUpdated(address indexed oldRegistry, address indexed newRegistry, address indexed updater);
     event PenaltyManagerUpdated(address indexed oldManager, address indexed newManager, address indexed updater);
     event VaultFactoryInitialized(address indexed owner, address indexed tokenRegistry, address indexed penaltyManager);
-    event VaultFactoryUpgraded(address indexed implementation);
+
     event EmergencyRecovery(address indexed token, uint256 amount, address indexed recipient, address indexed recoverer);
+    event VaultFactoryPaused(address indexed pauser, uint256 timestamp);
+    event VaultFactoryUnpaused(address indexed unpauser, uint256 timestamp);
     
     // Analytics events
     event UserAnalyticsUpdated(address indexed user, uint256 totalSaved, uint256 currentLocked, uint256 completedVaults);
@@ -95,61 +103,68 @@ contract VaultFactory is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         _;
     }
     
-    /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() {
-        _disableInitializers();
+    modifier validDuration(uint256 duration) {
+        require(duration >= 30 days && duration <= 365 days, "Invalid duration");
+        require(
+            duration == LOCK_1_MONTH || duration == LOCK_2_MONTHS || 
+            duration == LOCK_3_MONTHS || duration == LOCK_4_MONTHS || 
+            duration == LOCK_5_MONTHS || duration == LOCK_6_MONTHS || 
+            duration == LOCK_1_YEAR, "Duration not predefined"
+        );
+        _;
     }
     
     /**
-     * @dev Initialize the contract
-     * @param _owner The contract owner
+     * @dev Constructor
      * @param _tokenRegistry Address of TokenRegistry contract
      * @param _penaltyManager Address of PenaltyManager contract
      */
-    function initialize(
-        address _owner,
+    constructor(
         address _tokenRegistry,
         address _penaltyManager
-    ) public initializer {
+    ) Ownable(msg.sender) {
         require(_tokenRegistry != address(0), "Invalid token registry");
         require(_penaltyManager != address(0), "Invalid penalty manager");
-        
-        __Ownable_init(_owner);
-        __ReentrancyGuard_init();
-        __UUPSUpgradeable_init();
         
         tokenRegistry = TokenRegistry(_tokenRegistry);
         penaltyManager = PenaltyManager(_penaltyManager);
         
-        emit VaultFactoryInitialized(_owner, _tokenRegistry, _penaltyManager);
+        emit VaultFactoryInitialized(msg.sender, _tokenRegistry, _penaltyManager);
     }
+    
+    // Constants for bounds checking
+    uint256 public constant MAX_VAULTS_PER_USER = 100;
+    uint256 public constant MAX_TOTAL_VAULTS = 10000;
     
     /**
      * @dev Create a new vault
      * @param token The token to lock
      * @param amount The amount to lock
      * @param duration The lock duration in seconds
+     * @param deadline Transaction deadline to prevent stale transactions
      * @return vaultAddress The address of the created vault
      */
     function createVault(
         address token,
         uint256 amount,
-        uint256 duration
-    ) external validToken(token) validAmount(token, amount) nonReentrant returns (address vaultAddress) {
-        // Transfer tokens from user to factory
-        IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
+        uint256 duration,
+        uint256 deadline
+    ) external validToken(token) validAmount(token, amount) validDuration(duration) whenNotPaused nonReentrant returns (address vaultAddress) {
+        // Check deadline
+        require(block.timestamp <= deadline, "Transaction expired");
         
-        // Create new vault contract
-        SavingsVault vault = new SavingsVault();
+        // Check bounds
+        require(userVaults[msg.sender].length < MAX_VAULTS_PER_USER, "Too many vaults per user");
+        require(allVaults.length < MAX_TOTAL_VAULTS, "Max total vaults reached");
+        
+        // Create new vault contract with constructor parameters
+        SavingsVault vault = new SavingsVault(msg.sender, token, amount, duration);
         vaultAddress = address(vault);
         
-        // Initialize the vault
-        vault.initialize(msg.sender, token, amount, duration);
+        // Transfer tokens directly to vault (not through factory) - CEI pattern
+        IERC20(token).safeTransferFrom(msg.sender, vaultAddress, amount);
         
-        // Transfer tokens to vault
-        IERC20(token).safeTransfer(vaultAddress, amount);
-        
-        // Track vault
+        // Track vault (after external calls)
         userVaults[msg.sender].push(vaultAddress);
         userVaultsByToken[msg.sender][token].push(vaultAddress);
         allVaults.push(vaultAddress);
@@ -231,7 +246,7 @@ contract VaultFactory is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
      * @dev Withdraw from vault (completed lock period)
      * @param vaultAddress The vault address
      */
-    function withdrawFromVault(address vaultAddress) external nonReentrant {
+    function withdrawFromVault(address vaultAddress) external whenNotPaused nonReentrant {
         SavingsVault vault = SavingsVault(vaultAddress);
         SavingsVault.Vault memory vaultInfo = vault.getVaultInfo();
         
@@ -255,7 +270,7 @@ contract VaultFactory is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
      * @dev Early withdrawal from vault with penalty
      * @param vaultAddress The vault address
      */
-    function withdrawEarlyFromVault(address vaultAddress) external nonReentrant {
+    function withdrawEarlyFromVault(address vaultAddress) external whenNotPaused nonReentrant {
         SavingsVault vault = SavingsVault(vaultAddress);
         SavingsVault.Vault memory vaultInfo = vault.getVaultInfo();
         
@@ -265,18 +280,12 @@ contract VaultFactory is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         // Calculate penalty
         (uint256 penalty, ) = penaltyManager.calculatePenalty(vaultInfo.amount);
         
-        // Transfer penalty to factory first
-        IERC20(vaultInfo.token).safeTransferFrom(msg.sender, address(this), penalty);
-        
         // Update analytics first (CEI pattern)
         _updateUserAnalytics(msg.sender, vaultInfo.amount - penalty, 0, false, false);
         _updateGlobalAnalytics(vaultInfo.amount - penalty, 0, false, false);
         
-        // Perform early withdrawal (penalty already transferred)
+        // Perform early withdrawal (this will handle penalty transfer)
         vault.withdrawEarly(penalty);
-        
-        // Send penalty to treasury
-        penaltyManager.collectPenalty(vaultInfo.token, penalty);
         
         emit VaultWithdrawnEarly(msg.sender, vaultAddress, penalty, vaultInfo.amount - penalty, block.timestamp);
     }
@@ -347,6 +356,22 @@ contract VaultFactory is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     }
     
     /**
+     * @dev Pause contract (owner only)
+     */
+    function pause() external onlyOwner {
+        paused = true;
+        emit VaultFactoryPaused(msg.sender, block.timestamp);
+    }
+    
+    /**
+     * @dev Unpause contract (owner only)
+     */
+    function unpause() external onlyOwner {
+        paused = false;
+        emit VaultFactoryUnpaused(msg.sender, block.timestamp);
+    }
+    
+    /**
      * @dev Get user's active vaults
      * @param user The user address
      * @return Array of active vault addresses
@@ -358,7 +383,7 @@ contract VaultFactory is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         
         for (uint256 i = 0; i < userVaultsList.length; i++) {
             SavingsVault.Vault memory vaultInfo = SavingsVault(userVaultsList[i]).getVaultInfo();
-            if (vaultInfo.isActive && vaultInfo.status == SavingsVault.VaultStatus.LOCKED) {
+            if (vaultInfo.isActive && vaultInfo.status == SavingsVault.VaultStatus.ACTIVE) {
                 activeVaults[activeCount] = userVaultsList[i];
                 activeCount++;
             }
@@ -445,6 +470,7 @@ contract VaultFactory is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
             uint256 totalVaults = analytics.completedVaults + analytics.earlyWithdrawals;
             if (totalVaults > 0) {
                 uint256 totalDuration = analytics.averageLockDuration * totalVaults;
+                require(totalDuration + duration >= totalDuration, "Overflow in duration calculation");
                 totalDuration += duration;
                 analytics.averageLockDuration = totalDuration / (totalVaults + 1);
             } else {
@@ -453,16 +479,25 @@ contract VaultFactory is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         }
         
         if (isVaultCompleted) {
+            require(analytics.totalWithdrawn + amount >= analytics.totalWithdrawn, "Overflow in totalWithdrawn");
+            require(analytics.currentLocked >= amount, "Insufficient locked amount");
+            
             analytics.totalWithdrawn += amount;
             analytics.currentLocked -= amount;
             analytics.completedVaults++;
             analytics.lastVaultCompleted = block.timestamp;
         } else if (!isVaultCreated) {
             // Early withdrawal
+            require(analytics.totalWithdrawn + amount >= analytics.totalWithdrawn, "Overflow in totalWithdrawn");
+            require(analytics.currentLocked >= amount, "Insufficient locked amount");
+            
             analytics.totalWithdrawn += amount;
             analytics.currentLocked -= amount;
             analytics.earlyWithdrawals++;
-            analytics.totalPenalties += (amount * 10) / 100; // 10% penalty
+            
+            uint256 penalty = (amount * 10) / 100; // 10% penalty
+            require(analytics.totalPenalties + penalty >= analytics.totalPenalties, "Overflow in totalPenalties");
+            analytics.totalPenalties += penalty;
         }
         
         emit UserAnalyticsUpdated(user, analytics.totalSaved, analytics.currentLocked, analytics.completedVaults);
@@ -488,6 +523,7 @@ contract VaultFactory is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
             uint256 totalVaults = globalAnalytics.totalVaultsCompleted + globalAnalytics.totalEarlyWithdrawals;
             if (totalVaults > 0) {
                 uint256 totalDuration = globalAnalytics.averageVaultDuration * totalVaults;
+                require(totalDuration + duration >= totalDuration, "Overflow in duration calculation");
                 totalDuration += duration;
                 globalAnalytics.averageVaultDuration = totalDuration / (totalVaults + 1);
             } else {
@@ -496,15 +532,24 @@ contract VaultFactory is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         }
         
         if (isVaultCompleted) {
+            require(globalAnalytics.totalAmountWithdrawn + amount >= globalAnalytics.totalAmountWithdrawn, "Overflow in totalAmountWithdrawn");
+            require(globalAnalytics.totalAmountLocked >= amount, "Insufficient locked amount");
+            
             globalAnalytics.totalVaultsCompleted++;
             globalAnalytics.totalAmountWithdrawn += amount;
             globalAnalytics.totalAmountLocked -= amount;
         } else if (!isVaultCreated) {
             // Early withdrawal
+            require(globalAnalytics.totalAmountWithdrawn + amount >= globalAnalytics.totalAmountWithdrawn, "Overflow in totalAmountWithdrawn");
+            require(globalAnalytics.totalAmountLocked >= amount, "Insufficient locked amount");
+            
             globalAnalytics.totalEarlyWithdrawals++;
             globalAnalytics.totalAmountWithdrawn += amount;
             globalAnalytics.totalAmountLocked -= amount;
-            globalAnalytics.totalPenaltiesCollected += (amount * 10) / 100; // 10% penalty
+            
+            uint256 penalty = (amount * 10) / 100; // 10% penalty
+            require(globalAnalytics.totalPenaltiesCollected + penalty >= globalAnalytics.totalPenaltiesCollected, "Overflow in totalPenaltiesCollected");
+            globalAnalytics.totalPenaltiesCollected += penalty;
         }
         
         emit GlobalAnalyticsUpdated(globalAnalytics.totalVaultsCreated, globalAnalytics.totalUsers, globalAnalytics.totalAmountLocked);
@@ -573,10 +618,150 @@ contract VaultFactory is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         return (totalVaults, activeVaults, completedVaults, earlyWithdrawals, totalAmountSaved, currentAmountLocked);
     }
     
+
+    
     /**
-     * @dev Required by UUPSUpgradeable
+     * @dev Get user vaults by status
+     * @param user The user address
+     * @param status The vault status to filter by
+     * @return Array of vault addresses with the specified status
      */
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {
-        emit VaultFactoryUpgraded(newImplementation);
+    function getUserVaultsByStatus(address user, SavingsVault.VaultStatus status) external view returns (address[] memory) {
+        address[] memory allUserVaults = userVaults[user];
+        address[] memory filteredVaults = new address[](allUserVaults.length);
+        uint256 count = 0;
+        
+        for (uint256 i = 0; i < allUserVaults.length; i++) {
+            SavingsVault vault = SavingsVault(allUserVaults[i]);
+            if (vault.getVaultStatus() == status) {
+                filteredVaults[count] = allUserVaults[i];
+                count++;
+            }
+        }
+        
+        // Resize array to actual count
+        address[] memory result = new address[](count);
+        for (uint256 i = 0; i < count; i++) {
+            result[i] = filteredVaults[i];
+        }
+        
+        return result;
     }
+    
+    /**
+     * @dev Get vault status summary for a user
+     * @param user The user address
+     * @return activeCount Number of active vaults
+     * @return completedCount Number of completed vaults
+     * @return earlyWithdrawnCount Number of early withdrawn vaults
+     * @return terminatedCount Number of terminated vaults
+     */
+    function getUserVaultStatusSummary(address user) external view returns (
+        uint256 activeCount,
+        uint256 completedCount,
+        uint256 earlyWithdrawnCount,
+        uint256 terminatedCount
+    ) {
+        address[] memory allUserVaults = userVaults[user];
+        
+        for (uint256 i = 0; i < allUserVaults.length; i++) {
+            SavingsVault vault = SavingsVault(allUserVaults[i]);
+            SavingsVault.VaultStatus status = vault.getVaultStatus();
+            
+            if (status == SavingsVault.VaultStatus.ACTIVE) {
+                activeCount++;
+            } else if (status == SavingsVault.VaultStatus.COMPLETED) {
+                completedCount++;
+            } else if (status == SavingsVault.VaultStatus.WITHDRAWN_EARLY) {
+                earlyWithdrawnCount++;
+            } else if (status == SavingsVault.VaultStatus.TERMINATED) {
+                terminatedCount++;
+            }
+        }
+        
+        return (activeCount, completedCount, earlyWithdrawnCount, terminatedCount);
+    }
+    
+    /**
+     * @dev Get user completed vaults
+     * @param user The user address
+     * @return Array of completed vault addresses
+     */
+    function getUserCompletedVaults(address user) external view returns (address[] memory) {
+        address[] memory allUserVaults = userVaults[user];
+        address[] memory filteredVaults = new address[](allUserVaults.length);
+        uint256 count = 0;
+        
+        for (uint256 i = 0; i < allUserVaults.length; i++) {
+            SavingsVault vault = SavingsVault(allUserVaults[i]);
+            if (vault.getVaultStatus() == SavingsVault.VaultStatus.COMPLETED) {
+                filteredVaults[count] = allUserVaults[i];
+                count++;
+            }
+        }
+        
+        // Resize array to actual count
+        address[] memory result = new address[](count);
+        for (uint256 i = 0; i < count; i++) {
+            result[i] = filteredVaults[i];
+        }
+        
+        return result;
+    }
+    
+    /**
+     * @dev Get user early withdrawn vaults
+     * @param user The user address
+     * @return Array of early withdrawn vault addresses
+     */
+    function getUserEarlyWithdrawnVaults(address user) external view returns (address[] memory) {
+        address[] memory allUserVaults = userVaults[user];
+        address[] memory filteredVaults = new address[](allUserVaults.length);
+        uint256 count = 0;
+        
+        for (uint256 i = 0; i < allUserVaults.length; i++) {
+            SavingsVault vault = SavingsVault(allUserVaults[i]);
+            if (vault.getVaultStatus() == SavingsVault.VaultStatus.WITHDRAWN_EARLY) {
+                filteredVaults[count] = allUserVaults[i];
+                count++;
+            }
+        }
+        
+        // Resize array to actual count
+        address[] memory result = new address[](count);
+        for (uint256 i = 0; i < count; i++) {
+            result[i] = filteredVaults[i];
+        }
+        
+        return result;
+    }
+    
+    /**
+     * @dev Get user terminated vaults
+     * @param user The user address
+     * @return Array of terminated vault addresses
+     */
+    function getUserTerminatedVaults(address user) external view returns (address[] memory) {
+        address[] memory allUserVaults = userVaults[user];
+        address[] memory filteredVaults = new address[](allUserVaults.length);
+        uint256 count = 0;
+        
+        for (uint256 i = 0; i < allUserVaults.length; i++) {
+            SavingsVault vault = SavingsVault(allUserVaults[i]);
+            if (vault.getVaultStatus() == SavingsVault.VaultStatus.TERMINATED) {
+                filteredVaults[count] = allUserVaults[i];
+                count++;
+            }
+        }
+        
+        // Resize array to actual count
+        address[] memory result = new address[](count);
+        for (uint256 i = 0; i < count; i++) {
+            result[i] = filteredVaults[i];
+        }
+        
+        return result;
+    }
+    
+
 }

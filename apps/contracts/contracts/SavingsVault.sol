@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
@@ -12,17 +10,18 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
  * @title SavingsVault
  * @dev Individual vault contract for time-locked savings
  */
-contract SavingsVault is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, UUPSUpgradeable {
+contract SavingsVault is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
     
-    // Vault status enum
+    // Vault status enum - improved for better tracking
     enum VaultStatus {
-        LOCKED,
-        WITHDRAWN_EARLY,
-        WITHDRAWN_COMPLETED
+        ACTIVE,           // Vault is active and locked
+        WITHDRAWN_EARLY,  // User withdrew early (penalty applied)
+        COMPLETED,        // User withdrew after lock period (no penalty)
+        TERMINATED        // Vault was terminated (emergency or admin action)
     }
     
-    // Vault struct
+    // Vault struct - enhanced with more tracking data
     struct Vault {
         address owner;
         address token;
@@ -32,6 +31,9 @@ contract SavingsVault is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         uint256 unlockTime;
         VaultStatus status;
         bool isActive;
+        uint256 withdrawalTime;      // When vault was withdrawn/terminated
+        uint256 penaltyAmount;       // Penalty amount if early withdrawal
+        uint256 returnedAmount;      // Amount returned to user
     }
     
     // Vault data
@@ -52,7 +54,7 @@ contract SavingsVault is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     uint256 public constant LOCK_6_MONTHS = 180 days;
     uint256 public constant LOCK_1_YEAR = 365 days;
     
-    // Events
+    // Events - enhanced with more details
     event VaultCreated(address indexed owner, address indexed token, uint256 amount, uint256 duration, uint256 unlockTime);
     event FundsLocked(address indexed owner, uint256 amount, uint256 unlockTime, uint256 lockStartTime);
     event EarlyWithdrawal(address indexed owner, uint256 penalty, uint256 returned, uint256 timestamp);
@@ -60,6 +62,7 @@ contract SavingsVault is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     event EmergencyWithdrawal(address indexed owner, uint256 amount, uint256 timestamp);
     event VaultPaused(address indexed owner, uint256 timestamp);
     event VaultResumed(address indexed owner, uint256 timestamp);
+    event VaultTerminated(address indexed owner, uint256 timestamp);
     
     // Modifiers
     modifier onlyVaultOwner() {
@@ -72,33 +75,29 @@ contract SavingsVault is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         _;
     }
     
-    modifier vaultLocked() {
-        require(vault.status == VaultStatus.LOCKED, "Vault not locked");
+    modifier vaultNotTerminated() {
+        require(vault.status != VaultStatus.TERMINATED, "Vault is terminated");
         _;
     }
     
-    /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() {
-        _disableInitializers();
+    modifier onlyActiveVault() {
+        require(vault.status == VaultStatus.ACTIVE, "Vault not in active state");
+        _;
     }
     
     /**
-     * @dev Initialize the vault
+     * @dev Constructor
      * @param _owner The vault owner
      * @param _token The token address
      * @param _amount The amount to lock
      * @param _duration The lock duration
      */
-    function initialize(
+    constructor(
         address _owner,
         address _token,
         uint256 _amount,
         uint256 _duration
-    ) public initializer {
-        __Ownable_init(_owner);
-        __ReentrancyGuard_init();
-        __UUPSUpgradeable_init();
-        
+    ) Ownable(_owner) {
         require(_owner != address(0), "Invalid owner");
         require(_token != address(0), "Invalid token");
         require(_amount > 0, "Amount must be greater than 0");
@@ -112,8 +111,11 @@ contract SavingsVault is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
             lockStartTime: block.timestamp,
             lockDuration: _duration,
             unlockTime: block.timestamp + _duration,
-            status: VaultStatus.LOCKED,
-            isActive: true
+            status: VaultStatus.ACTIVE,
+            isActive: true,
+            withdrawalTime: 0,
+            penaltyAmount: 0,
+            returnedAmount: 0
         });
         
         emit VaultCreated(_owner, _token, _amount, _duration, vault.unlockTime);
@@ -128,7 +130,7 @@ contract SavingsVault is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     }
     
     /**
-     * @dev Check if vault is unlocked
+     * @dev Check if vault is unlocked (time has passed)
      */
     function isUnlocked() public view returns (bool) {
         return block.timestamp >= vault.unlockTime;
@@ -154,12 +156,16 @@ contract SavingsVault is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     /**
      * @dev Withdraw funds after lock period (no penalty)
      */
-    function withdrawCompleted() external onlyVaultOwner vaultActive vaultLocked nonReentrant {
+    function withdrawCompleted() external onlyVaultOwner vaultActive onlyActiveVault nonReentrant {
         require(isUnlocked(), "Vault not yet unlocked");
         
         uint256 amount = vault.amount;
-        vault.status = VaultStatus.WITHDRAWN_COMPLETED;
+        
+        // Update vault state
+        vault.status = VaultStatus.COMPLETED;
         vault.isActive = false;
+        vault.withdrawalTime = block.timestamp;
+        vault.returnedAmount = amount;
         
         // Transfer tokens to owner
         IERC20(vault.token).safeTransfer(vault.owner, amount);
@@ -169,20 +175,26 @@ contract SavingsVault is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     
     /**
      * @dev Early withdrawal with penalty
-     * @param penaltyAmount The penalty amount to burn
+     * @param penaltyAmount The penalty amount to apply
      */
-    function withdrawEarly(uint256 penaltyAmount) external onlyVaultOwner vaultActive vaultLocked nonReentrant {
-        require(!isUnlocked(), "Vault already unlocked");
+    function withdrawEarly(uint256 penaltyAmount) external onlyVaultOwner vaultActive onlyActiveVault nonReentrant {
+        require(!isUnlocked(), "Vault already unlocked - use withdrawCompleted");
         require(penaltyAmount > 0, "Penalty must be greater than 0");
         require(penaltyAmount < vault.amount, "Penalty cannot exceed amount");
         
         uint256 remainingAmount = vault.amount - penaltyAmount;
         
-        // Update state before external calls (CEI pattern)
+        // Update vault state before external calls (CEI pattern)
         vault.status = VaultStatus.WITHDRAWN_EARLY;
         vault.isActive = false;
+        vault.withdrawalTime = block.timestamp;
+        vault.penaltyAmount = penaltyAmount;
+        vault.returnedAmount = remainingAmount;
         
-        // Transfer remaining amount to owner (no penalty transfer here)
+        // Transfer penalty to factory (which will send to treasury)
+        IERC20(vault.token).safeTransfer(msg.sender, penaltyAmount);
+        
+        // Transfer remaining amount to owner
         IERC20(vault.token).safeTransfer(vault.owner, remainingAmount);
         
         emit EarlyWithdrawal(vault.owner, penaltyAmount, remainingAmount, block.timestamp);
@@ -196,14 +208,19 @@ contract SavingsVault is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         require(balance > 0, "No balance to withdraw");
         
         // Only allow emergency withdrawal if vault is in an invalid state
-        require(vault.status == VaultStatus.LOCKED && !vault.isActive, "Vault not in emergency state");
+        require(vault.status == VaultStatus.ACTIVE && !vault.isActive, "Vault not in emergency state");
         
+        // Update vault state
+        vault.status = VaultStatus.TERMINATED;
         vault.isActive = false;
+        vault.withdrawalTime = block.timestamp;
+        vault.returnedAmount = balance;
         
         // Transfer all tokens to owner
         IERC20(vault.token).safeTransfer(owner(), balance);
         
         emit EmergencyWithdrawal(owner(), balance, block.timestamp);
+        emit VaultTerminated(vault.owner, block.timestamp);
     }
     
     /**
@@ -226,32 +243,59 @@ contract SavingsVault is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
      * @dev Get vault status as string
      */
     function getVaultStatusString() external view returns (string memory) {
-        if (vault.status == VaultStatus.LOCKED) {
-            return "LOCKED";
+        if (vault.status == VaultStatus.ACTIVE) {
+            return "ACTIVE";
         } else if (vault.status == VaultStatus.WITHDRAWN_EARLY) {
             return "WITHDRAWN_EARLY";
-        } else if (vault.status == VaultStatus.WITHDRAWN_COMPLETED) {
-            return "WITHDRAWN_COMPLETED";
+        } else if (vault.status == VaultStatus.COMPLETED) {
+            return "COMPLETED";
+        } else if (vault.status == VaultStatus.TERMINATED) {
+            return "TERMINATED";
         }
         return "UNKNOWN";
     }
     
     /**
-     * @dev Check if vault can be withdrawn
+     * @dev Check if vault can be withdrawn normally (after lock period)
      */
     function canWithdraw() external view returns (bool) {
         return vault.isActive && 
-               vault.status == VaultStatus.LOCKED && 
+               vault.status == VaultStatus.ACTIVE && 
                isUnlocked();
     }
     
     /**
-     * @dev Check if vault can be withdrawn early
+     * @dev Check if vault can be withdrawn early (before lock period)
      */
     function canWithdrawEarly() external view returns (bool) {
         return vault.isActive && 
-               vault.status == VaultStatus.LOCKED && 
+               vault.status == VaultStatus.ACTIVE && 
                !isUnlocked();
+    }
+    
+    /**
+     * @dev Check if vault is still active (not withdrawn/terminated)
+     */
+    function isVaultActive() external view returns (bool) {
+        return vault.status == VaultStatus.ACTIVE && vault.isActive;
+    }
+    
+    /**
+     * @dev Get vault status for UI display
+     */
+    function getVaultStatus() external view returns (VaultStatus) {
+        return vault.status;
+    }
+    
+    /**
+     * @dev Get withdrawal details (if vault was withdrawn)
+     */
+    function getWithdrawalDetails() external view returns (
+        uint256 withdrawalTime,
+        uint256 penaltyAmount,
+        uint256 returnedAmount
+    ) {
+        return (vault.withdrawalTime, vault.penaltyAmount, vault.returnedAmount);
     }
     
     /**
@@ -287,12 +331,5 @@ contract SavingsVault is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
                duration == LOCK_5_MONTHS ||
                duration == LOCK_6_MONTHS ||
                duration == LOCK_1_YEAR;
-    }
-    
-    /**
-     * @dev Required by UUPSUpgradeable
-     */
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {
-        // Only owner can upgrade
     }
 }
