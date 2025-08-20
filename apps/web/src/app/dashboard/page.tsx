@@ -30,17 +30,22 @@ export default function Dashboard() {
   const { address, isConnected } = useAccount()
   const chainId = useChainId()
   const { 
-    vaultFactory, 
-    tokenRegistry, 
-    getUserVaults, 
-    getVaultAnalytics,
+    userVaults: vaultsFromHook, 
+    totalVaults,
     isLoading,
-    hasError 
+    refreshVaultData,
+    vaultFactory
   } = useVaults()
   const { getTransactionStats, hasPendingTransactions } = useTransactions()
   const { userProfile, isRegistered, isLoading: isProfileLoading } = useUserProfile()
   
-  const [userVaults, setUserVaults] = useState<any[]>([])
+  // Get status-based vaults directly from vaultFactory
+  const activeVaults: string[] = Array.isArray(vaultFactory.userActiveVaults) ? vaultFactory.userActiveVaults : []
+  const completedVaults: string[] = Array.isArray(vaultFactory.userCompletedVaults) ? vaultFactory.userCompletedVaults : []
+  const earlyWithdrawnVaults: string[] = Array.isArray(vaultFactory.userEarlyWithdrawnVaults) ? vaultFactory.userEarlyWithdrawnVaults : []
+  const vaultStatusSummary: any = vaultFactory.userVaultStatusSummary || { activeCount: 0, completedCount: 0, earlyWithdrawnCount: 0, terminatedCount: 0 }
+  const isLoadingStatusData = vaultFactory.isLoadingUserActiveVaults || vaultFactory.isLoadingUserCompletedVaults || vaultFactory.isLoadingUserEarlyWithdrawnVaults || vaultFactory.isLoadingUserVaultStatusSummary
+  
   const [analytics, setAnalytics] = useState<any>(null)
   const [isLoadingData, setIsLoadingData] = useState(true)
 
@@ -63,22 +68,22 @@ export default function Dashboard() {
         })
         
         // Get user vaults with timeout
-        const vaultsPromise = getUserVaults()
-        const vaults = await Promise.race([vaultsPromise, timeoutPromise]) as any[]
-        // console.log('Dashboard vaults:', vaults)
-        setUserVaults(Array.isArray(vaults) ? vaults : [])
+        await refreshVaultData()
+        
+        // Refresh status-based vault data
+        await vaultFactory.refetchUserActiveVaults()
+        await vaultFactory.refetchUserCompletedVaults()
+        await vaultFactory.refetchUserEarlyWithdrawnVaults()
+        await vaultFactory.refetchUserVaultStatusSummary()
 
-        // Get analytics for first vault if exists
-        if (vaults && Array.isArray(vaults) && vaults.length > 0) {
-          const firstVaultAnalytics = await getVaultAnalytics(vaults[0])
-          setAnalytics(firstVaultAnalytics)
-        }
+        // For now, skip analytics since we don't have detailed vault info yet
+        setAnalytics(null)
 
       } catch (error) {
         console.error('Error loading dashboard data:', error)
         toast.error('Failed to load dashboard data')
         // Set empty vaults to prevent infinite loading
-        setUserVaults([])
+
       } finally {
         // console.log('Dashboard data loading complete')
         setIsLoadingData(false)
@@ -86,7 +91,7 @@ export default function Dashboard() {
     }
 
     loadDashboardData()
-  }, [isConnected, address, userProfile, isRegistered, isProfileLoading, getUserVaults, getVaultAnalytics])
+  }, [isConnected, address, userProfile, isRegistered, isProfileLoading])
 
   const handleCreateVault = () => {
     router.push('/create-vault')
@@ -99,6 +104,14 @@ export default function Dashboard() {
   const handleViewVault = (vaultAddress: string) => {
     router.push(`/vault-details/${vaultAddress}`)
   }
+
+  // Calculate quick stats using status-based data
+  const totalVaultsCount = activeVaults.length + completedVaults.length + earlyWithdrawnVaults.length
+  
+  // TODO: Calculate total saved from vault balances - for now use a placeholder
+  const totalSaved = 0n // This should be calculated by summing all active vault balances
+  
+  const transactionStats = getTransactionStats()
 
   // Loading state with timeout
   // console.log('Loading states:', { isLoadingData, isLoading, isProfileLoading })
@@ -177,7 +190,7 @@ export default function Dashboard() {
   }
 
   // No vaults state - show main dashboard with welcome message
-  if (userVaults.length === 0) {
+  if (totalVaultsCount === 0 && !isLoadingStatusData) {
     return (
       <PageTransition>
         <div className="container mx-auto px-4 py-8">
@@ -228,8 +241,10 @@ export default function Dashboard() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="sapasafe-heading-2 text-primary">0</p>
-                <p className="sapasafe-text-xs text-muted-foreground">No vaults yet</p>
+                <p className="sapasafe-heading-2 text-primary">{activeVaults.length}</p>
+                <p className="sapasafe-text-xs text-muted-foreground">
+                  {activeVaults.length === 0 ? 'No vaults yet' : `${activeVaults.length} vault${activeVaults.length === 1 ? '' : 's'}`}
+                </p>
               </CardContent>
             </Card>
 
@@ -276,12 +291,6 @@ export default function Dashboard() {
       </PageTransition>
     )
   }
-
-  // Calculate quick stats
-  const activeVaults = userVaults.filter(vault => vault.status === 'LOCKED')
-  const completedVaults = userVaults.filter(vault => vault.status === 'WITHDRAWN_COMPLETED')
-  const totalSaved = userVaults.reduce((sum, vault) => sum + (vault.balance || 0n), 0n)
-  const transactionStats = getTransactionStats()
 
   return (
     <PageTransition>
@@ -343,7 +352,22 @@ export default function Dashboard() {
           <Card className="sapasafe-card">
             <CardHeader className="pb-3">
               <CardTitle className="sapasafe-heading-4 flex items-center gap-2">
-                <Target className="h-5 w-5 text-success" />
+                <PiggyBank className="h-5 w-5 text-success" />
+                Total Vaults
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="sapasafe-heading-2">{totalVaultsCount}</div>
+              <p className="sapasafe-text-xs text-muted-foreground">
+                All vaults created
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="sapasafe-card">
+            <CardHeader className="pb-3">
+              <CardTitle className="sapasafe-heading-4 flex items-center gap-2">
+                <Target className="h-5 w-5 text-accent" />
                 Total Saved
               </CardTitle>
             </CardHeader>
@@ -360,7 +384,7 @@ export default function Dashboard() {
           <Card className="sapasafe-card">
             <CardHeader className="pb-3">
               <CardTitle className="sapasafe-heading-4 flex items-center gap-2">
-                <Shield className="h-5 w-5 text-accent" />
+                <Shield className="h-5 w-5 text-info" />
                 Completed
               </CardTitle>
             </CardHeader>
@@ -368,23 +392,6 @@ export default function Dashboard() {
               <div className="sapasafe-heading-2">{completedVaults.length}</div>
               <p className="sapasafe-text-xs text-muted-foreground">
                 Successfully completed vaults
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="sapasafe-card">
-            <CardHeader className="pb-3">
-              <CardTitle className="sapasafe-heading-4 flex items-center gap-2">
-                <Zap className="h-5 w-5 text-info" />
-                Success Rate
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="sapasafe-heading-2">
-                {transactionStats.successRate.toFixed(1)}%
-              </div>
-              <p className="sapasafe-text-xs text-muted-foreground">
-                Transaction success rate
               </p>
             </CardContent>
           </Card>
@@ -419,11 +426,11 @@ export default function Dashboard() {
               </div>
             ) : (
               <div className="space-y-4">
-                {activeVaults.slice(0, 3).map((vault, index) => (
+                {activeVaults.slice(0, 3).map((vaultAddress, index) => (
                   <div 
                     key={index}
                     className="flex items-center justify-between p-4 rounded-lg border border-border hover:bg-muted/50 transition-colors cursor-pointer"
-                    onClick={() => handleViewVault(vault.address)}
+                    onClick={() => handleViewVault(vaultAddress)}
                   >
                     <div className="flex items-center gap-4">
                       <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
@@ -434,13 +441,13 @@ export default function Dashboard() {
                           Vault #{index + 1}
                         </h4>
                         <p className="sapasafe-text-sm text-muted-foreground">
-                          {vault.token} • {vault.duration} days
+                          {vaultAddress.slice(0, 8)}...{vaultAddress.slice(-6)}
                         </p>
                       </div>
                     </div>
                     <div className="text-right">
                       <div className="sapasafe-heading-4">
-                        {vault.balance ? `${Number(vault.balance) / 10**18}` : '0'}
+                        View Details
                       </div>
                       <Badge variant="secondary" className="sapasafe-status-info">
                         Active

@@ -3,31 +3,25 @@ export const CONTRACTS = {
   // Alfajores Testnet
   alfajores: {
     tokenRegistry: {
-      implementation: "0x489A6563295E96aD48647D5B4e555D879C433b59",
-      proxy: "0x8c3907ffc68f305A60d241a88D5b2d3C665eAcdF"
+      address: "0xdff3C5d1Ae46A795fE4B891c01bB43B69055bFf7"
     },
     penaltyManager: {
-      implementation: "0xA3A5d917B952E73B61a92Aa311Dc70844e3d77cd",
-      proxy: "0x7777e46157369afEfE40bc697Dc70c225667882f"
+      address: "0x5c43dAEeB39D66F5546beE7FA06a073E3b803591"
     },
     vaultFactory: {
-      implementation: "0x5fcC7d6A99Ca919463E3b895d93aAfBe2B126095",
-      proxy: "0xb6BEE6fF5747865Bb2b6069B11e22ba169cF7A12"
+      address: "0x3888aC9D1004B26c1D8D9b4623F4c6B0B3469205"
     }
   }
   // Celo Mainnet - commented out until contracts are deployed
   // celo: {
   //   tokenRegistry: {
-  //     implementation: "",
-  //     proxy: ""
+  //     address: ""
   //   },
   //   penaltyManager: {
-  //     implementation: "",
-  //     proxy: ""
+  //     address: ""
   //   },
   //   vaultFactory: {
-  //     implementation: "",
-  //     proxy: ""
+  //     address: ""
   //   }
   // }
 } as const
@@ -39,13 +33,13 @@ export const getContractAddresses = (network: 'alfajores' = 'alfajores') => {
 
 // Contract address getters
 export const getVaultFactoryAddress = (network: 'alfajores' = 'alfajores') => {
-  return CONTRACTS[network].vaultFactory.proxy
+  return CONTRACTS[network].vaultFactory.address
 }
 
 export const getTokenRegistryAddress = (network: 'alfajores' = 'alfajores') => {
-  return CONTRACTS[network].tokenRegistry.proxy
+  return CONTRACTS[network].tokenRegistry.address
 }
 
 export const getPenaltyManagerAddress = (network: 'alfajores' = 'alfajores') => {
-  return CONTRACTS[network].penaltyManager.proxy
+  return CONTRACTS[network].penaltyManager.address
 }
