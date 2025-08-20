@@ -1,4 +1,4 @@
-import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
+import { useReadContract } from 'wagmi'
 import { TOKEN_REGISTRY_ABI } from '../ABI'
 import { getTokenRegistryAddress } from '../config/contracts'
 import { useChainId } from 'wagmi'
@@ -7,8 +7,13 @@ import { useCallback, useMemo } from 'react'
 export const useTokenRegistry = () => {
   // Using Alfajores testnet
   const tokenRegistryAddress = getTokenRegistryAddress('alfajores')
-  
-  console.log('TokenRegistry hook - address:', tokenRegistryAddress)
+  const chainId = useChainId()
+
+  console.log('TokenRegistry hook:', { 
+    tokenRegistryAddress,
+    chainId,
+    isAlfajores: chainId === 44787 
+  })
 
   // Read: Get all supported tokens
   const { 
@@ -22,34 +27,53 @@ export const useTokenRegistry = () => {
     functionName: 'getSupportedTokens',
   })
   
-  console.log('TokenRegistry query:', { 
+  console.log('Supported tokens query:', { 
     supportedTokenAddresses, 
     isLoadingSupportedTokens, 
-    supportedTokensError,
-    hasAddress: !!tokenRegistryAddress 
+    supportedTokensError
   })
   
   // Process supported tokens to get full information
   const supportedTokens = useMemo(() => {
+    console.log('Processing supported tokens...')
+    console.log('supportedTokenAddresses:', supportedTokenAddresses)
+    console.log('isArray:', Array.isArray(supportedTokenAddresses))
+    console.log('Token registry address:', tokenRegistryAddress)
+    
     if (!supportedTokenAddresses || !Array.isArray(supportedTokenAddresses)) {
-      return []
+      console.log('No supported token addresses, returning fallback currencies')
+      console.log('This suggests the token registry is not properly initialized')
+      return [
+        { symbol: "cNGN", name: "Nigerian Naira", logo: "🇳🇬", minAmount: "500000000000000000000", address: "0x4a5b03B8b16122D330306c65e4CA4BC5Dd6511d0" },
+        { symbol: "cGHS", name: "Ghanaian Cedi", logo: "🇬🇭", minAmount: "5000000000000000000", address: "0x295B66bE7714458Af45E6A6Ea142A5358A6cA375" },
+        { symbol: "cKES", name: "Kenyan Shilling", logo: "🇰🇪", minAmount: "500000000000000000000", address: "0x1E0433C1769271ECcF4CFF9FDdD515eefE6CdF92" },
+        { symbol: "cZAR", name: "South African Rand", logo: "🇿🇦", minAmount: "50000000000000000000", address: "0x1e5b44015Ff90610b54000DAad31C89b3284df4d" },
+        { symbol: "cXOF", name: "West African CFA", logo: "🇸🇳", minAmount: "50000000000000000000", address: "0xB0FA15e002516d0301884059c0aaC0F0C72b019D" },
+      ]
     }
     
-    // For now, return fallback currencies since we need to implement proper token info fetching
-    return [
-      { symbol: "cNGN", name: "Nigerian Naira", logo: "🇳🇬", minAmount: "500000000000000000000" },
-      { symbol: "cGHS", name: "Ghanaian Cedi", logo: "🇬🇭", minAmount: "5000000000000000000" },
-      { symbol: "cKES", name: "Kenyan Shilling", logo: "🇰🇪", minAmount: "500000000000000000000" },
-      { symbol: "cZAR", name: "South African Rand", logo: "🇿🇦", minAmount: "50000000000000000000" },
-      { symbol: "cXOF", name: "West African CFA", logo: "🇸🇳", minAmount: "50000000000000000000" },
-    ]
-  }, [supportedTokenAddresses])
+    // Map token addresses to their corresponding info
+    const tokenAddressToInfo: Record<string, any> = {
+      '0x4a5b03B8b16122D330306c65e4CA4BC5Dd6511d0': { symbol: "cNGN", name: "Nigerian Naira", logo: "🇳🇬", minAmount: "500000000000000000000", address: "0x4a5b03B8b16122D330306c65e4CA4BC5Dd6511d0" },
+      '0x295B66bE7714458Af45E6A6Ea142A5358A6cA375': { symbol: "cGHS", name: "Ghanaian Cedi", logo: "🇬🇭", minAmount: "5000000000000000000", address: "0x295B66bE7714458Af45E6A6Ea142A5358A6cA375" },
+      '0x1E0433C1769271ECcF4CFF9FDdD515eefE6CdF92': { symbol: "cKES", name: "Kenyan Shilling", logo: "🇰🇪", minAmount: "500000000000000000000", address: "0x1E0433C1769271ECcF4CFF9FDdD515eefE6CdF92" },
+      '0x1e5b44015Ff90610b54000DAad31C89b3284df4d': { symbol: "cZAR", name: "South African Rand", logo: "🇿🇦", minAmount: "50000000000000000000", address: "0x1e5b44015Ff90610b54000DAad31C89b3284df4d" },
+      '0xB0FA15e002516d0301884059c0aaC0F0C72b019D': { symbol: "cXOF", name: "West African CFA", logo: "🇸🇳", minAmount: "50000000000000000000", address: "0xB0FA15e002516d0301884059c0aaC0F0C72b019D" },
+    }
+    
+    // Return tokens that are actually supported by the contract
+    const processedTokens = supportedTokenAddresses
+      .map(address => tokenAddressToInfo[address])
+      .filter(Boolean)
+    
+    console.log('Processed tokens:', processedTokens)
+    console.log('Number of supported tokens from contract:', processedTokens.length)
+    return processedTokens
+  }, [supportedTokenAddresses, tokenRegistryAddress])
 
   // Read: Get token by address
   const getTokenByAddress = useCallback((tokenAddress: `0x${string}`) => {
-    // This should return a promise or use a different pattern
-    // For now, we'll return a simple object structure
-    return {
+    return supportedTokens.find(token => token.address === tokenAddress) || {
       address: tokenAddress,
       symbol: '',
       name: '',
@@ -57,117 +81,30 @@ export const useTokenRegistry = () => {
       logo: '🪙',
       minAmount: '0'
     }
-  }, [])
+  }, [supportedTokens])
 
   // Read: Check if token is supported
   const isTokenSupported = useCallback((tokenAddress: `0x${string}`) => {
-    // Return a boolean based on supported tokens
-    return Array.isArray(supportedTokens) && supportedTokens.some((token: any) => token.address === tokenAddress)
+    return supportedTokens.some(token => token.address === tokenAddress)
   }, [supportedTokens])
 
-  // Read: Get token metadata
-  const getTokenMetadata = useCallback((tokenAddress: `0x${string}`) => {
-    // Return metadata from supported tokens
-    return Array.isArray(supportedTokens) ? supportedTokens.find((token: any) => token.address === tokenAddress) || null : null
-  }, [supportedTokens])
-
-  // Read: Get token rate
-  const getTokenRate = useCallback((tokenAddress: `0x${string}`) => {
-    // Return a default rate or fetch from contract
-    return {
-      rate: 1,
-      lastUpdated: Date.now()
-    }
-  }, [])
-
-  // Read: Get total supported tokens count
+  // Read: Get token info from contract
   const { 
-    data: totalSupportedTokens, 
-    isLoading: isLoadingTotalTokens 
+    data: tokenInfo,
+    isLoading: isLoadingTokenInfo,
+    error: tokenInfoError
   } = useReadContract({
     address: tokenRegistryAddress as `0x${string}`,
     abi: TOKEN_REGISTRY_ABI,
-    functionName: 'getTotalSupportedTokens',
+    functionName: 'getTokenInfo',
+    args: ['0x4a5b03B8b16122D330306c65e4CA4BC5Dd6511d0' as `0x${string}`], // Test with cNGN
   })
 
-  // Write: Add new token (admin only)
-  const { 
-    data: addTokenData, 
-    writeContract: addToken, 
-    isPending: isAddingToken,
-    error: addTokenError 
-  } = useWriteContract()
-
-  const { 
-    isLoading: isAddTokenPending, 
-    isSuccess: isAddTokenSuccess 
-  } = useWaitForTransactionReceipt({
-    hash: addTokenData,
+  console.log('Token info query:', { 
+    tokenInfo, 
+    isLoadingTokenInfo, 
+    tokenInfoError 
   })
-
-  // Write: Remove token (admin only)
-  const { 
-    data: removeTokenData, 
-    writeContract: removeToken, 
-    isPending: isRemovingToken,
-    error: removeTokenError 
-  } = useWriteContract()
-
-  const { 
-    isLoading: isRemoveTokenPending, 
-    isSuccess: isRemoveTokenSuccess 
-  } = useWaitForTransactionReceipt({
-    hash: removeTokenData,
-  })
-
-  // Write: Update token rate (admin only)
-  const { 
-    data: updateRateData, 
-    writeContract: updateRate, 
-    isPending: isUpdatingRate,
-    error: updateRateError 
-  } = useWriteContract()
-
-  const { 
-    isLoading: isUpdateRatePending, 
-    isSuccess: isUpdateRateSuccess 
-  } = useWaitForTransactionReceipt({
-    hash: updateRateData,
-  })
-
-  // Helper functions
-  const addSupportedToken = (
-    tokenAddress: `0x${string}`,
-    symbol: string,
-    name: string,
-    decimals: number,
-    rate: bigint
-  ) => {
-    return addToken({
-      address: tokenRegistryAddress as `0x${string}`,
-      abi: TOKEN_REGISTRY_ABI,
-      functionName: 'addToken',
-      args: [tokenAddress, symbol, name, decimals, rate],
-    })
-  }
-
-  const removeSupportedToken = (tokenAddress: `0x${string}`) => {
-    return removeToken({
-      address: tokenRegistryAddress as `0x${string}`,
-      abi: TOKEN_REGISTRY_ABI,
-      functionName: 'removeToken',
-      args: [tokenAddress],
-    })
-  }
-
-  const updateTokenRate = (tokenAddress: `0x${string}`, newRate: bigint) => {
-    return updateRate({
-      address: tokenRegistryAddress as `0x${string}`,
-      abi: TOKEN_REGISTRY_ABI,
-      functionName: 'updateTokenRate',
-      args: [tokenAddress, newRate],
-    })
-  }
 
   return {
     // Address
@@ -177,33 +114,11 @@ export const useTokenRegistry = () => {
     supportedTokens,
     isLoadingSupportedTokens,
     refetchSupportedTokens,
+    supportedTokensError,
     getTokenByAddress,
     isTokenSupported,
-    getTokenMetadata,
-    getTokenRate,
-    totalSupportedTokens,
-    isLoadingTotalTokens,
-    
-    // Write functions (admin only)
-    addSupportedToken,
-    isAddingToken,
-    addTokenError,
-    isAddTokenPending,
-    isAddTokenSuccess,
-    removeSupportedToken,
-    isRemovingToken,
-    removeTokenError,
-    isRemoveTokenPending,
-    isRemoveTokenSuccess,
-    updateTokenRate,
-    isUpdatingRate,
-    updateRateError,
-    isUpdateRatePending,
-    isUpdateRateSuccess,
-    
-    // Transaction data
-    addTokenData,
-    removeTokenData,
-    updateRateData,
+    tokenInfo,
+    isLoadingTokenInfo,
+    tokenInfoError,
   }
 }

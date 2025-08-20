@@ -5,19 +5,14 @@ import { useVaults, useTransactions } from "@/Hooks"
 import { useAccount } from "wagmi"
 import { PageTransition } from "@/components/page-transition"
 import { EmptyState } from "@/components/empty-state"
+import { VaultCard } from "@/components/vault-card"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import { Card, CardContent } from "@/components/ui/card"
 import { 
   Plus, 
-  Eye, 
-  AlertTriangle, 
-  Clock,
   PiggyBank,
-  CheckCircle,
-  XCircle,
-  ArrowRight,
-  RefreshCw
+  RefreshCw,
+  Clock
 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -26,41 +21,25 @@ export default function VaultsPage() {
   const router = useRouter()
   const { address, isConnected } = useAccount()
   const { 
-    vaultFactory, 
+    userVaults: vaultsFromHook, 
     getUserVaults, 
-    getVaultAnalytics,
     withdrawFromVault,
     refreshVaultData,
     isLoading,
-    hasError 
+    getVaultPenalty,
+    vaultFactory
   } = useVaults()
   const { addTransaction, hasPendingTransactions } = useTransactions()
   
-  const [userVaults, setUserVaults] = useState<any[]>([])
-  const [isLoadingData, setIsLoadingData] = useState(true)
-
-  // Load user vaults
-  useEffect(() => {
-    const loadVaults = async () => {
-      if (!isConnected || !address) {
-        setIsLoadingData(false)
-        return
-      }
-
-      try {
-        setIsLoadingData(true)
-        const vaults = await getUserVaults()
-        setUserVaults(Array.isArray(vaults) ? vaults : [])
-      } catch (error) {
-        console.error('Error loading vaults:', error)
-        toast.error('Failed to load vaults')
-      } finally {
-        setIsLoadingData(false)
-      }
-    }
-
-    loadVaults()
-  }, [isConnected, address, getUserVaults])
+  // Use vaults directly from the hook - these are vault addresses
+  const userVaults: string[] = Array.isArray(vaultsFromHook) ? vaultsFromHook : []
+  
+  // Get status-based vaults directly from vaultFactory
+  const activeVaults: string[] = Array.isArray(vaultFactory.userActiveVaults) ? vaultFactory.userActiveVaults : []
+  const completedVaults: string[] = Array.isArray(vaultFactory.userCompletedVaults) ? vaultFactory.userCompletedVaults : []
+  const earlyWithdrawnVaults: string[] = Array.isArray(vaultFactory.userEarlyWithdrawnVaults) ? vaultFactory.userEarlyWithdrawnVaults : []
+  const vaultStatusSummary = vaultFactory.userVaultStatusSummary || { activeCount: 0, completedCount: 0, earlyWithdrawnCount: 0, terminatedCount: 0 }
+  const isLoadingStatusData = vaultFactory.isLoadingUserActiveVaults || vaultFactory.isLoadingUserCompletedVaults || vaultFactory.isLoadingUserEarlyWithdrawnVaults || vaultFactory.isLoadingUserVaultStatusSummary
 
   const handleCreateVault = () => {
     router.push('/create-vault')
@@ -72,7 +51,16 @@ export default function VaultsPage() {
 
   const handleRefresh = async () => {
     try {
+      console.log('Manually refreshing vault data...')
       await refreshVaultData()
+      
+      // Refresh status-based vault data
+      await vaultFactory.refetchUserActiveVaults()
+      await vaultFactory.refetchUserCompletedVaults()
+      await vaultFactory.refetchUserEarlyWithdrawnVaults()
+      await vaultFactory.refetchUserVaultStatusSummary()
+      
+      console.log('Vault data refreshed')
       toast.success('Vault data refreshed')
     } catch (error) {
       console.error('Error refreshing vault data:', error)
@@ -80,58 +68,10 @@ export default function VaultsPage() {
     }
   }
 
-  const handleEarlyWithdraw = async (vaultAddress: string, amount: bigint) => {
-    try {
-      await withdrawFromVault(vaultAddress as `0x${string}`, true)
-      
-      addTransaction({
-        hash: '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`,
-        type: 'emergency_withdraw',
-        status: 'pending',
-        description: 'Early withdrawal with penalty',
-        metadata: { vaultAddress, amount: amount.toString() }
-      })
-      
-      toast.success('Early withdrawal initiated')
-    } catch (error) {
-      console.error('Error with early withdrawal:', error)
-      toast.error('Failed to process early withdrawal')
-    }
-  }
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'LOCKED':
-        return 'sapasafe-status-info'
-      case 'WITHDRAWN_COMPLETED':
-        return 'sapasafe-status-success'
-      case 'WITHDRAWN_EARLY':
-        return 'sapasafe-status-error'
-      default:
-        return 'sapasafe-status-info'
-    }
-  }
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'LOCKED':
-        return <Clock className="h-4 w-4" />
-      case 'WITHDRAWN_COMPLETED':
-        return <CheckCircle className="h-4 w-4" />
-      case 'WITHDRAWN_EARLY':
-        return <XCircle className="h-4 w-4" />
-      default:
-        return <Clock className="h-4 w-4" />
-    }
-  }
-
-  const formatAmount = (amount: bigint, decimals: number = 18) => {
-    if (!amount) return '0'
-    return (Number(amount) / 10**decimals).toFixed(2)
-  }
 
   // Loading state
-  if (isLoadingData || isLoading) {
+  if (isLoading) {
     return (
       <PageTransition>
         <div className="container mx-auto px-4 py-8">
@@ -165,7 +105,8 @@ export default function VaultsPage() {
   }
 
   // No vaults state
-  if (userVaults.length === 0) {
+  const totalVaultsCount = activeVaults.length + completedVaults.length + earlyWithdrawnVaults.length
+  if (totalVaultsCount === 0 && !isLoadingStatusData) {
     return (
       <PageTransition>
         <div className="container mx-auto px-4 py-8">
@@ -182,11 +123,6 @@ export default function VaultsPage() {
       </PageTransition>
     )
   }
-
-  // Categorize vaults
-  const activeVaults = userVaults.filter(vault => vault.status === 'LOCKED')
-  const completedVaults = userVaults.filter(vault => vault.status === 'WITHDRAWN_COMPLETED')
-  const earlyWithdrawnVaults = userVaults.filter(vault => vault.status === 'WITHDRAWN_EARLY')
 
   return (
     <PageTransition>
@@ -238,56 +174,15 @@ export default function VaultsPage() {
         {/* Active Vaults */}
         {activeVaults.length > 0 && (
           <div className="mb-8">
-            <h2 className="sapasafe-heading-3 mb-4">Active Vaults</h2>
+            <h2 className="sapasafe-heading-3 mb-4">Active Vaults ({activeVaults.length})</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {activeVaults.map((vault, index) => (
-                <Card key={index} className="sapasafe-card">
-                  <CardHeader>
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <CardTitle className="sapasafe-heading-4">
-                          Vault #{index + 1}
-                        </CardTitle>
-                        <CardDescription>
-                          {vault.token} • {vault.duration} days
-                        </CardDescription>
-                      </div>
-                      <Badge className={getStatusColor(vault.status)}>
-                        {getStatusIcon(vault.status)}
-                        Active
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <span className="sapasafe-text-sm text-muted-foreground">Balance</span>
-                      <span className="sapasafe-heading-4">
-                        {formatAmount(vault.balance || 0n)}
-                      </span>
-                    </div>
-                    
-                    <div className="flex gap-2">
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="flex-1 sapasafe-btn-outline"
-                        onClick={() => handleViewDetails(vault.address)}
-                      >
-                        <Eye className="mr-2 h-4 w-4" />
-                        View Details
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="flex-1 border-error/20 text-error hover:bg-error/5"
-                        onClick={() => handleEarlyWithdraw(vault.address, vault.balance || 0n)}
-                      >
-                        <AlertTriangle className="mr-2 h-4 w-4" />
-                        Early Withdraw
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
+              {activeVaults.map((vaultAddress, index) => (
+                <VaultCard
+                  key={index}
+                  vaultAddress={vaultAddress}
+                  index={index}
+                  onViewDetails={handleViewDetails}
+                />
               ))}
             </div>
           </div>
@@ -296,45 +191,15 @@ export default function VaultsPage() {
         {/* Completed Vaults */}
         {completedVaults.length > 0 && (
           <div className="mb-8">
-            <h2 className="sapasafe-heading-3 mb-4">Completed Vaults</h2>
+            <h2 className="sapasafe-heading-3 mb-4">Completed Vaults ({completedVaults.length})</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {completedVaults.map((vault, index) => (
-                <Card key={index} className="sapasafe-card">
-                  <CardHeader>
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <CardTitle className="sapasafe-heading-4">
-                          Vault #{index + 1}
-                        </CardTitle>
-                        <CardDescription>
-                          {vault.token} • Completed
-                        </CardDescription>
-                      </div>
-                      <Badge className={getStatusColor(vault.status)}>
-                        {getStatusIcon(vault.status)}
-                        Completed
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex justify-between items-center mb-4">
-                      <span className="sapasafe-text-sm text-muted-foreground">Final Amount</span>
-                      <span className="sapasafe-heading-4">
-                        {formatAmount(vault.balance || 0n)}
-                      </span>
-                    </div>
-                    
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="w-full sapasafe-btn-outline"
-                      onClick={() => handleViewDetails(vault.address)}
-                    >
-                      <Eye className="mr-2 h-4 w-4" />
-                      View Details
-                    </Button>
-                  </CardContent>
-                </Card>
+              {completedVaults.map((vaultAddress, index) => (
+                <VaultCard
+                  key={index}
+                  vaultAddress={vaultAddress}
+                  index={index}
+                  onViewDetails={handleViewDetails}
+                />
               ))}
             </div>
           </div>
@@ -343,49 +208,32 @@ export default function VaultsPage() {
         {/* Early Withdrawn Vaults */}
         {earlyWithdrawnVaults.length > 0 && (
           <div className="mb-8">
-            <h2 className="sapasafe-heading-3 mb-4">Early Withdrawn Vaults</h2>
+            <h2 className="sapasafe-heading-3 mb-4">Early Withdrawn Vaults ({earlyWithdrawnVaults.length})</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {earlyWithdrawnVaults.map((vault, index) => (
-                <Card key={index} className="sapasafe-card">
-                  <CardHeader>
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <CardTitle className="sapasafe-heading-4">
-                          Vault #{index + 1}
-                        </CardTitle>
-                        <CardDescription>
-                          {vault.token} • Early Withdrawn
-                        </CardDescription>
-                      </div>
-                      <Badge className={getStatusColor(vault.status)}>
-                        {getStatusIcon(vault.status)}
-                        Early Withdrawn
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex justify-between items-center mb-4">
-                      <span className="sapasafe-text-sm text-muted-foreground">Amount Returned</span>
-                      <span className="sapasafe-heading-4">
-                        {formatAmount(vault.balance || 0n)}
-                      </span>
-                    </div>
-                    
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="w-full sapasafe-btn-outline"
-                      onClick={() => handleViewDetails(vault.address)}
-                    >
-                      <Eye className="mr-2 h-4 w-4" />
-                      View Details
-                    </Button>
-                  </CardContent>
-                </Card>
+              {earlyWithdrawnVaults.map((vaultAddress, index) => (
+                <VaultCard
+                  key={index}
+                  vaultAddress={vaultAddress}
+                  index={index}
+                  onViewDetails={handleViewDetails}
+                />
               ))}
             </div>
           </div>
         )}
+
+        {/* No Vaults State */}
+        {activeVaults.length === 0 && completedVaults.length === 0 && earlyWithdrawnVaults.length === 0 && (
+          <EmptyState
+            icon={<PiggyBank className="h-12 w-12" />}
+            title="No Vaults Yet"
+            description="Create your first savings vault to start building your financial future"
+            onAction={handleCreateVault}
+            actionLabel="Create Your First Vault"
+          />
+        )}
+
+
       </div>
     </PageTransition>
   )

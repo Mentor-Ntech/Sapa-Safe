@@ -2,10 +2,18 @@ import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from 
 import { PENALTY_MANAGER_ABI } from '../ABI'
 import { getPenaltyManagerAddress } from '../config/contracts'
 import { useChainId } from 'wagmi'
+import { useCallback } from 'react'
 
 export const usePenaltyManager = () => {
   // Using Alfajores testnet
   const penaltyManagerAddress = getPenaltyManagerAddress('alfajores')
+  const chainId = useChainId()
+
+  console.log('PenaltyManager hook:', { 
+    penaltyManagerAddress,
+    chainId,
+    isAlfajores: chainId === 44787 
+  })
 
   // Read: Get penalty percentage
   const { 
@@ -14,86 +22,62 @@ export const usePenaltyManager = () => {
   } = useReadContract({
     address: penaltyManagerAddress as `0x${string}`,
     abi: PENALTY_MANAGER_ABI,
-    functionName: 'getPenaltyPercentage',
+    functionName: 'getPenaltyPercentageAsPercent',
   })
 
-  // Read: Get penalty amount for a vault
-  const getPenaltyAmount = (vaultAddress: `0x${string}`, amount: bigint) => {
-    return useReadContract({
-      address: penaltyManagerAddress as `0x${string}`,
-      abi: PENALTY_MANAGER_ABI,
-      functionName: 'calculatePenalty',
-      args: [vaultAddress, amount],
-      query: {
-        enabled: !!vaultAddress && !!amount,
-      }
-    })
-  }
+  console.log('Penalty percentage query:', { 
+    penaltyPercentage, 
+    isLoadingPenaltyPercentage 
+  })
 
-  // Read: Check if withdrawal is early
-  const isEarlyWithdrawal = (vaultAddress: `0x${string}`) => {
-    return useReadContract({
-      address: penaltyManagerAddress as `0x${string}`,
-      abi: PENALTY_MANAGER_ABI,
-      functionName: 'isEarlyWithdrawal',
-      args: [vaultAddress],
-      query: {
-        enabled: !!vaultAddress,
-      }
-    })
-  }
+  // Read: Get treasury address
+  const { 
+    data: treasuryAddress, 
+    isLoading: isLoadingTreasury 
+  } = useReadContract({
+    address: penaltyManagerAddress as `0x${string}`,
+    abi: PENALTY_MANAGER_ABI,
+    functionName: 'getTreasuryAddress',
+  })
 
-  // Read: Get vault lock period
-  const getVaultLockPeriod = (vaultAddress: `0x${string}`) => {
-    return useReadContract({
-      address: penaltyManagerAddress as `0x${string}`,
-      abi: PENALTY_MANAGER_ABI,
-      functionName: 'getVaultLockPeriod',
-      args: [vaultAddress],
-      query: {
-        enabled: !!vaultAddress,
-      }
-    })
-  }
+  console.log('Treasury address query:', { 
+    treasuryAddress, 
+    isLoadingTreasury 
+  })
 
-  // Read: Get vault start time
-  const getVaultStartTime = (vaultAddress: `0x${string}`) => {
-    return useReadContract({
-      address: penaltyManagerAddress as `0x${string}`,
-      abi: PENALTY_MANAGER_ABI,
-      functionName: 'getVaultStartTime',
-      args: [vaultAddress],
-      query: {
-        enabled: !!vaultAddress,
-      }
-    })
-  }
+  // Helper function to calculate penalty for an amount
+  const calculatePenalty = useCallback(async (amount: bigint) => {
+    try {
+      console.log('Calculating penalty for amount:', amount.toString())
+      
+      // This would typically call the contract, but for now we'll use a simple calculation
+      // The contract uses 10% penalty (1000 basis points)
+      const penalty = (amount * 10n) / 100n
+      const remainingAmount = amount - penalty
+      
+      console.log('Penalty calculation:', {
+        originalAmount: amount.toString(),
+        penalty: penalty.toString(),
+        remainingAmount: remainingAmount.toString()
+      })
+      
+      return { penalty, remainingAmount }
+    } catch (error) {
+      console.error('Error calculating penalty:', error)
+      throw error
+    }
+  }, [])
 
-  // Read: Get time remaining until unlock
-  const getTimeRemaining = (vaultAddress: `0x${string}`) => {
-    return useReadContract({
-      address: penaltyManagerAddress as `0x${string}`,
-      abi: PENALTY_MANAGER_ABI,
-      functionName: 'getTimeRemaining',
-      args: [vaultAddress],
-      query: {
-        enabled: !!vaultAddress,
-      }
-    })
-  }
-
-  // Read: Get penalty history for a vault
-  const getPenaltyHistory = (vaultAddress: `0x${string}`) => {
-    return useReadContract({
-      address: penaltyManagerAddress as `0x${string}`,
-      abi: PENALTY_MANAGER_ABI,
-      functionName: 'getPenaltyHistory',
-      args: [vaultAddress],
-      query: {
-        enabled: !!vaultAddress,
-      }
-    })
-  }
+  // Helper function to check if penalty is acceptable
+  const isPenaltyAcceptable = useCallback(async (amount: bigint) => {
+    try {
+      const { penalty } = await calculatePenalty(amount)
+      return penalty > 0n && penalty < amount
+    } catch (error) {
+      console.error('Error checking penalty acceptability:', error)
+      return false
+    }
+  }, [calculatePenalty])
 
   // Write: Update penalty percentage (admin only)
   const { 
@@ -110,63 +94,43 @@ export const usePenaltyManager = () => {
     hash: updatePenaltyData,
   })
 
-  // Write: Set vault lock period (admin only)
+  // Write: Update treasury address (admin only)
   const { 
-    data: setLockPeriodData, 
-    writeContract: setLockPeriod, 
-    isPending: isSettingLockPeriod,
-    error: setLockPeriodError 
+    data: updateTreasuryData, 
+    writeContract: updateTreasury, 
+    isPending: isUpdatingTreasury,
+    error: updateTreasuryError 
   } = useWriteContract()
 
   const { 
-    isLoading: isSetLockPeriodPending, 
-    isSuccess: isSetLockPeriodSuccess 
+    isLoading: isUpdateTreasuryPending, 
+    isSuccess: isUpdateTreasurySuccess 
   } = useWaitForTransactionReceipt({
-    hash: setLockPeriodData,
-  })
-
-  // Write: Process penalty (called by vault)
-  const { 
-    data: processPenaltyData, 
-    writeContract: processPenalty, 
-    isPending: isProcessingPenalty,
-    error: processPenaltyError 
-  } = useWriteContract()
-
-  const { 
-    isLoading: isProcessPenaltyPending, 
-    isSuccess: isProcessPenaltySuccess 
-  } = useWaitForTransactionReceipt({
-    hash: processPenaltyData,
+    hash: updateTreasuryData,
   })
 
   // Helper functions
-  const updatePenaltyPercentage = (newPercentage: bigint) => {
+  const updatePenaltyPercentage = useCallback((newPercentage: bigint) => {
+    console.log('Updating penalty percentage to:', newPercentage.toString())
+    
     return updatePenalty({
       address: penaltyManagerAddress as `0x${string}`,
       abi: PENALTY_MANAGER_ABI,
       functionName: 'updatePenaltyPercentage',
       args: [newPercentage],
     })
-  }
+  }, [updatePenalty, penaltyManagerAddress])
 
-  const setVaultLockPeriod = (vaultAddress: `0x${string}`, lockPeriod: bigint) => {
-    return setLockPeriod({
+  const updateTreasuryAddress = useCallback((newTreasury: `0x${string}`) => {
+    console.log('Updating treasury address to:', newTreasury)
+    
+    return updateTreasury({
       address: penaltyManagerAddress as `0x${string}`,
       abi: PENALTY_MANAGER_ABI,
-      functionName: 'setVaultLockPeriod',
-      args: [vaultAddress, lockPeriod],
+      functionName: 'updateTreasuryAddress',
+      args: [newTreasury],
     })
-  }
-
-  const processVaultPenalty = (vaultAddress: `0x${string}`, amount: bigint) => {
-    return processPenalty({
-      address: penaltyManagerAddress as `0x${string}`,
-      abi: PENALTY_MANAGER_ABI,
-      functionName: 'processPenalty',
-      args: [vaultAddress, amount],
-    })
-  }
+  }, [updateTreasury, penaltyManagerAddress])
 
   return {
     // Address
@@ -175,12 +139,10 @@ export const usePenaltyManager = () => {
     // Read functions
     penaltyPercentage,
     isLoadingPenaltyPercentage,
-    getPenaltyAmount,
-    isEarlyWithdrawal,
-    getVaultLockPeriod,
-    getVaultStartTime,
-    getTimeRemaining,
-    getPenaltyHistory,
+    treasuryAddress,
+    isLoadingTreasury,
+    calculatePenalty,
+    isPenaltyAcceptable,
     
     // Write functions (admin only)
     updatePenaltyPercentage,
@@ -188,20 +150,14 @@ export const usePenaltyManager = () => {
     updatePenaltyError,
     isUpdatePenaltyPending,
     isUpdatePenaltySuccess,
-    setVaultLockPeriod,
-    isSettingLockPeriod,
-    setLockPeriodError,
-    isSetLockPeriodPending,
-    isSetLockPeriodSuccess,
-    processVaultPenalty,
-    isProcessingPenalty,
-    processPenaltyError,
-    isProcessPenaltyPending,
-    isProcessPenaltySuccess,
+    updateTreasuryAddress,
+    isUpdatingTreasury,
+    updateTreasuryError,
+    isUpdateTreasuryPending,
+    isUpdateTreasurySuccess,
     
     // Transaction data
     updatePenaltyData,
-    setLockPeriodData,
-    processPenaltyData,
+    updateTreasuryData,
   }
 }

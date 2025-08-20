@@ -1,22 +1,36 @@
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
 import { SAVINGS_VAULT_ABI } from '../ABI'
-import { useAccount } from 'wagmi'
+import { useAccount, useChainId } from 'wagmi'
+import { useCallback } from 'react'
 
 export const useSavingsVault = (vaultAddress?: `0x${string}`) => {
   const { address } = useAccount()
+  const chainId = useChainId()
 
-  // Read: Get vault details
+  console.log('SavingsVault hook:', { 
+    vaultAddress,
+    userAddress: address,
+    chainId,
+    isAlfajores: chainId === 44787 
+  })
+
+  // Read: Get vault info
   const { 
-    data: vaultDetails, 
-    isLoading: isLoadingVaultDetails, 
-    refetch: refetchVaultDetails 
+    data: vaultInfo, 
+    isLoading: isLoadingVaultInfo, 
+    refetch: refetchVaultInfo 
   } = useReadContract({
     address: vaultAddress,
     abi: SAVINGS_VAULT_ABI,
-    functionName: 'getVaultDetails',
+    functionName: 'getVaultInfo',
     query: {
       enabled: !!vaultAddress,
     }
+  })
+
+  console.log('Vault info query:', { 
+    vaultInfo, 
+    isLoadingVaultInfo 
   })
 
   // Read: Get vault balance
@@ -26,16 +40,75 @@ export const useSavingsVault = (vaultAddress?: `0x${string}`) => {
   } = useReadContract({
     address: vaultAddress,
     abi: SAVINGS_VAULT_ABI,
-    functionName: 'getBalance',
+    functionName: 'getVaultBalance',
     query: {
       enabled: !!vaultAddress,
     }
   })
 
-  // Read: Get vault status
+  console.log('Vault balance query:', { 
+    vaultBalance, 
+    isLoadingBalance 
+  })
+
+  // Read: Check if vault is unlocked
+  const { 
+    data: isUnlocked, 
+    isLoading: isLoadingUnlockStatus 
+  } = useReadContract({
+    address: vaultAddress,
+    abi: SAVINGS_VAULT_ABI,
+    functionName: 'isUnlocked',
+    query: {
+      enabled: !!vaultAddress,
+    }
+  })
+
+  console.log('Vault unlock status query:', { 
+    isUnlocked, 
+    isLoadingUnlockStatus 
+  })
+
+  // Read: Get remaining time
+  const { 
+    data: remainingTime, 
+    isLoading: isLoadingRemainingTime 
+  } = useReadContract({
+    address: vaultAddress,
+    abi: SAVINGS_VAULT_ABI,
+    functionName: 'getRemainingTime',
+    query: {
+      enabled: !!vaultAddress,
+    }
+  })
+
+  console.log('Remaining time query:', { 
+    remainingTime, 
+    isLoadingRemainingTime 
+  })
+
+  // Read: Get vault status string
+  const { 
+    data: vaultStatusString, 
+    isLoading: isLoadingStatusString 
+  } = useReadContract({
+    address: vaultAddress,
+    abi: SAVINGS_VAULT_ABI,
+    functionName: 'getVaultStatusString',
+    query: {
+      enabled: !!vaultAddress,
+    }
+  })
+
+  console.log('Vault status string query:', { 
+    vaultStatusString, 
+    isLoadingStatusString 
+  })
+
+  // Read: Get vault status (enum)
   const { 
     data: vaultStatus, 
-    isLoading: isLoadingStatus 
+    isLoading: isLoadingVaultStatus 
   } = useReadContract({
     address: vaultAddress,
     abi: SAVINGS_VAULT_ABI,
@@ -45,188 +118,186 @@ export const useSavingsVault = (vaultAddress?: `0x${string}`) => {
     }
   })
 
-  // Read: Get vault owner
+  console.log('Vault status query:', { 
+    vaultStatus, 
+    isLoadingVaultStatus 
+  })
+
+  // Read: Check if vault is active
   const { 
-    data: vaultOwner, 
-    isLoading: isLoadingOwner 
+    data: isVaultActive, 
+    isLoading: isLoadingVaultActive 
   } = useReadContract({
     address: vaultAddress,
     abi: SAVINGS_VAULT_ABI,
-    functionName: 'owner',
+    functionName: 'isVaultActive',
     query: {
       enabled: !!vaultAddress,
     }
   })
 
-  // Read: Get vault token
+  console.log('Vault active query:', { 
+    isVaultActive, 
+    isLoadingVaultActive 
+  })
+
+  // Read: Get withdrawal details
   const { 
-    data: vaultToken, 
-    isLoading: isLoadingToken 
+    data: withdrawalDetails, 
+    isLoading: isLoadingWithdrawalDetails 
   } = useReadContract({
     address: vaultAddress,
     abi: SAVINGS_VAULT_ABI,
-    functionName: 'token',
+    functionName: 'getWithdrawalDetails',
     query: {
       enabled: !!vaultAddress,
     }
   })
 
-  // Read: Get vault goal
+  console.log('Withdrawal details query:', { 
+    withdrawalDetails, 
+    isLoadingWithdrawalDetails 
+  })
+
+  // Read: Check if can withdraw
   const { 
-    data: vaultGoal, 
-    isLoading: isLoadingGoal 
+    data: canWithdraw, 
+    isLoading: isLoadingCanWithdraw 
   } = useReadContract({
     address: vaultAddress,
     abi: SAVINGS_VAULT_ABI,
-    functionName: 'goal',
+    functionName: 'canWithdraw',
     query: {
       enabled: !!vaultAddress,
     }
   })
 
-  // Read: Get vault duration
+  console.log('Can withdraw query:', { 
+    canWithdraw, 
+    isLoadingCanWithdraw 
+  })
+
+  // Read: Check if can withdraw early
   const { 
-    data: vaultDuration, 
-    isLoading: isLoadingDuration 
+    data: canWithdrawEarly, 
+    isLoading: isLoadingCanWithdrawEarly 
   } = useReadContract({
     address: vaultAddress,
     abi: SAVINGS_VAULT_ABI,
-    functionName: 'duration',
+    functionName: 'canWithdrawEarly',
     query: {
       enabled: !!vaultAddress,
     }
   })
 
-  // Read: Get vault start time
-  const { 
-    data: vaultStartTime, 
-    isLoading: isLoadingStartTime 
-  } = useReadContract({
-    address: vaultAddress,
-    abi: SAVINGS_VAULT_ABI,
-    functionName: 'startTime',
-    query: {
-      enabled: !!vaultAddress,
-    }
+  console.log('Can withdraw early query:', { 
+    canWithdrawEarly, 
+    isLoadingCanWithdrawEarly 
   })
 
-  // Write: Deposit funds
+  // Write: Withdraw completed (no penalty)
   const { 
-    data: depositData, 
-    writeContract: deposit, 
-    isPending: isDepositing,
-    error: depositError 
+    data: withdrawCompletedData, 
+    writeContract: withdrawCompleted, 
+    isPending: isWithdrawingCompleted,
+    error: withdrawCompletedError 
   } = useWriteContract()
 
   const { 
-    isLoading: isDepositPending, 
-    isSuccess: isDepositSuccess 
+    isLoading: isWithdrawCompletedPending, 
+    isSuccess: isWithdrawCompletedSuccess 
   } = useWaitForTransactionReceipt({
-    hash: depositData,
+    hash: withdrawCompletedData,
   })
 
-  // Write: Withdraw funds (normal)
+  // Write: Withdraw early (with penalty)
   const { 
-    data: withdrawData, 
-    writeContract: withdraw, 
-    isPending: isWithdrawing,
-    error: withdrawError 
+    data: withdrawEarlyData, 
+    writeContract: withdrawEarly, 
+    isPending: isWithdrawingEarly,
+    error: withdrawEarlyError 
   } = useWriteContract()
 
   const { 
-    isLoading: isWithdrawPending, 
-    isSuccess: isWithdrawSuccess 
+    isLoading: isWithdrawEarlyPending, 
+    isSuccess: isWithdrawEarlySuccess 
   } = useWaitForTransactionReceipt({
-    hash: withdrawData,
-  })
-
-  // Write: Emergency withdraw (with penalty)
-  const { 
-    data: emergencyWithdrawData, 
-    writeContract: emergencyWithdraw, 
-    isPending: isEmergencyWithdrawing,
-    error: emergencyWithdrawError 
-  } = useWriteContract()
-
-  const { 
-    isLoading: isEmergencyWithdrawPending, 
-    isSuccess: isEmergencyWithdrawSuccess 
-  } = useWaitForTransactionReceipt({
-    hash: emergencyWithdrawData,
+    hash: withdrawEarlyData,
   })
 
   // Helper functions
-  const depositFunds = (amount: bigint) => {
-    if (!vaultAddress) return
-    return deposit({
+  const withdrawCompletedFunds = useCallback(() => {
+    if (!vaultAddress) {
+      console.error('No vault address provided')
+      return
+    }
+    
+    console.log('Withdrawing completed funds from vault:', vaultAddress)
+    
+    return withdrawCompleted({
       address: vaultAddress,
       abi: SAVINGS_VAULT_ABI,
-      functionName: 'deposit',
-      args: [amount],
+      functionName: 'withdrawCompleted',
     })
-  }
+  }, [vaultAddress, withdrawCompleted])
 
-  const withdrawFunds = () => {
-    if (!vaultAddress) return
-    return withdraw({
+  const withdrawEarlyFunds = useCallback((penaltyAmount: bigint) => {
+    if (!vaultAddress) {
+      console.error('No vault address provided')
+      return
+    }
+    
+    console.log('Withdrawing early from vault:', vaultAddress, 'with penalty:', penaltyAmount.toString())
+    
+    return withdrawEarly({
       address: vaultAddress,
       abi: SAVINGS_VAULT_ABI,
-      functionName: 'withdraw',
+      functionName: 'withdrawEarly',
+      args: [penaltyAmount],
     })
-  }
-
-  const emergencyWithdrawFunds = () => {
-    if (!vaultAddress) return
-    return emergencyWithdraw({
-      address: vaultAddress,
-      abi: SAVINGS_VAULT_ABI,
-      functionName: 'emergencyWithdraw',
-    })
-  }
+  }, [vaultAddress, withdrawEarly])
 
   return {
     // Vault address
     vaultAddress,
     
     // Read functions
-    vaultDetails,
-    isLoadingVaultDetails,
-    refetchVaultDetails,
+    vaultInfo,
+    isLoadingVaultInfo,
+    refetchVaultInfo,
     vaultBalance,
     isLoadingBalance,
+    isUnlocked,
+    isLoadingUnlockStatus,
+    remainingTime,
+    isLoadingRemainingTime,
+    vaultStatusString,
+    isLoadingStatusString,
     vaultStatus,
-    isLoadingStatus,
-    vaultOwner,
-    isLoadingOwner,
-    vaultToken,
-    isLoadingToken,
-    vaultGoal,
-    isLoadingGoal,
-    vaultDuration,
-    isLoadingDuration,
-    vaultStartTime,
-    isLoadingStartTime,
+    isLoadingVaultStatus,
+    isVaultActive,
+    isLoadingVaultActive,
+    withdrawalDetails,
+    isLoadingWithdrawalDetails,
+    canWithdraw,
+    isLoadingCanWithdraw,
+    canWithdrawEarly,
+    isLoadingCanWithdrawEarly,
     
     // Write functions
-    depositFunds,
-    isDepositing,
-    depositError,
-    isDepositPending,
-    isDepositSuccess,
-    withdrawFunds,
-    isWithdrawing,
-    withdrawError,
-    isWithdrawPending,
-    isWithdrawSuccess,
-    emergencyWithdrawFunds,
-    isEmergencyWithdrawing,
-    emergencyWithdrawError,
-    isEmergencyWithdrawPending,
-    isEmergencyWithdrawSuccess,
+    withdrawCompletedFunds,
+    isWithdrawingCompleted,
+    withdrawCompletedError,
+    isWithdrawCompletedPending,
+    isWithdrawCompletedSuccess,
+    withdrawEarlyFunds,
+    isWithdrawingEarly,
+    withdrawEarlyError,
+    isWithdrawEarlyPending,
+    isWithdrawEarlySuccess,
     
     // Transaction data
-    depositData,
-    withdrawData,
-    emergencyWithdrawData,
+    withdrawCompletedData,
+    withdrawEarlyData,
   }
 }

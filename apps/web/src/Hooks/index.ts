@@ -2,7 +2,7 @@ export * from './useVaultFactory'
 export * from './useSavingsVault'
 export * from './useTokenRegistry'
 export * from './usePenaltyManager'
-export * from './useSapaSafeProxy'
+
 export * from './useVaults'
 export * from './useTransactions'
 export * from './useUserProfile'

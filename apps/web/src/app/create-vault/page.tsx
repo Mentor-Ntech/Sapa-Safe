@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useVaults, useTokenRegistry, useTransactions } from "@/Hooks"
-import { useAccount } from "wagmi"
+import { useVaults, useTokenRegistry, useTransactions, useVaultFactory } from "@/Hooks"
+import { useAccount, useReadContract } from "wagmi"
 import { PageTransition } from "@/components/page-transition"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -19,8 +19,16 @@ export default function CreateVaultPage() {
   const { 
     createNewVault, 
     refreshVaultData,
-    isLoading: isVaultLoading 
+    checkVaultCreationStatus,
+    isLoading: isVaultLoading,
+    vaultFactory
   } = useVaults()
+
+  const { 
+    approveTokensForFactory,
+    isApprovingTokens,
+    checkTokenAllowance
+  } = useVaultFactory()
   const { 
     supportedTokens, 
     isLoadingSupportedTokens: isTokenLoading 
@@ -34,16 +42,40 @@ export default function CreateVaultPage() {
     duration: '',
     goal: ''
   })
+
+  // Check user's token balance
+  const { data: userTokenBalance } = useReadContract({
+    address: (() => {
+      if (!formData.token) return undefined
+      const tokenAddressMap: Record<string, `0x${string}`> = {
+        'cNGN': '0x4a5b03B8b16122D330306c65e4CA4BC5Dd6511d0' as `0x${string}`,
+        'cGHS': '0x295B66bE7714458Af45E6A6Ea142A5358A6cA375' as `0x${string}`,
+        'cKES': '0x1E0433C1769271ECcF4CFF9FDdD515eefE6CdF92' as `0x${string}`,
+        'cZAR': '0x1e5b44015Ff90610b54000DAad31C89b3284df4d' as `0x${string}`,
+        'cXOF': '0xB0FA15e002516d0301884059c0aaC0F0C72b019D' as `0x${string}`,
+      }
+      return tokenAddressMap[formData.token]
+    })(),
+    abi: [
+      {
+        inputs: [{ name: 'account', type: 'address' }],
+        name: 'balanceOf',
+        outputs: [{ name: '', type: 'uint256' }],
+        stateMutability: 'view',
+        type: 'function'
+      }
+    ],
+    functionName: 'balanceOf',
+    args: address ? [address] : undefined,
+    query: {
+      enabled: !!address && !!formData.token,
+    }
+  })
   const [isCreating, setIsCreating] = useState(false)
 
   // Available currencies from token registry
-  console.log('Supported tokens from contract:', supportedTokens)
-  console.log('Is loading tokens:', isTokenLoading)
-  
   // Use supported tokens directly (they now include fallback currencies)
   const availableCurrencies = Array.isArray(supportedTokens) ? supportedTokens : []
-  
-  console.log('Available currencies:', availableCurrencies)
   
   // Duration options
   const durations = [
@@ -114,6 +146,48 @@ export default function CreateVaultPage() {
       const amountInWei = BigInt(parseFloat(formData.amount) * 10**18)
       const durationInSeconds = BigInt(parseInt(formData.duration) * 24 * 60 * 60) // days to seconds
       
+
+      
+      // Get the correct token address for the selected token
+      const tokenAddressMap: Record<string, `0x${string}`> = {
+        'cNGN': '0x4a5b03B8b16122D330306c65e4CA4BC5Dd6511d0' as `0x${string}`,
+        'cGHS': '0x295B66bE7714458Af45E6A6Ea142A5358A6cA375' as `0x${string}`,
+        'cKES': '0x1E0433C1769271ECcF4CFF9FDdD515eefE6CdF92' as `0x${string}`,
+        'cZAR': '0x1e5b44015Ff90610b54000DAad31C89b3284df4d' as `0x${string}`,
+        'cXOF': '0xB0FA15e002516d0301884059c0aaC0F0C72b019D' as `0x${string}`,
+      }
+      
+      const tokenAddress = tokenAddressMap[formData.token]
+      if (!tokenAddress) {
+        throw new Error(`Token ${formData.token} not supported`)
+      }
+      
+
+      
+      // Check user's token balance
+
+      
+      if (!userTokenBalance || userTokenBalance < amountInWei) {
+        throw new Error(`Insufficient token balance. You have ${userTokenBalance?.toString() || '0'} but need ${amountInWei.toString()}`)
+      }
+      
+      // First, approve the tokens
+      console.log('Approving tokens for vault creation...')
+      toast.info('Approving tokens for vault creation...')
+      
+      try {
+        console.log('Starting token approval process...')
+        await approveTokensForFactory(tokenAddress, amountInWei)
+        console.log('Approval completed successfully')
+        toast.success('Token approval sent! Check your wallet for approval popup.')
+      } catch (error) {
+        console.error('Error approving tokens:', error)
+        toast.error('Failed to approve tokens')
+        throw error
+      }
+
+      // Create the vault
+      console.log('Creating vault...')
       const result = await createNewVault(
         formData.token,
         amountInWei,
@@ -121,9 +195,12 @@ export default function CreateVaultPage() {
         formData.goal
       )
 
-      // Note: createNewVault returns void, so we'll just show success
+      console.log('Vault creation result:', result)
+      toast.success('Vault creation transaction sent! Check your wallet for approval popup.')
+      
+      // Add transaction to tracking
       addTransaction({
-        hash: '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`,
+        hash: vaultFactory.createVaultData || '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`,
         type: 'create_vault',
         status: 'pending',
         description: `Created ${formData.token} vault`,
@@ -135,14 +212,44 @@ export default function CreateVaultPage() {
         }
       })
       
-      // Refresh vault data to include the newly created vault
-      await refreshVaultData()
+      // Wait for transaction confirmation and refresh data
+      const checkInterval = setInterval(async () => {
+        const isSuccess = await checkVaultCreationStatus()
+        if (isSuccess) {
+          clearInterval(checkInterval)
+          toast.success('Vault created successfully!')
+          
+          // Force refresh before navigating
+          console.log('Vault created, refreshing data...')
+          await refreshVaultData()
+          
+          router.push('/vaults')
+        }
+      }, 2000) // Check every 2 seconds
       
-      toast.success('Vault creation initiated!')
-      router.push('/vaults')
+      // Timeout after 30 seconds
+      setTimeout(() => {
+        clearInterval(checkInterval)
+        toast.info('Transaction may still be processing. Check your vaults page.')
+        router.push('/vaults')
+      }, 30000)
     } catch (error) {
       console.error('Error creating vault:', error)
-      toast.error('Failed to create vault')
+      
+      // Provide more specific error messages
+      if (error instanceof Error) {
+        if (error.message.includes('Insufficient token balance')) {
+          toast.error('Insufficient token balance. Please check your wallet.')
+        } else if (error.message.includes('Amount below minimum')) {
+          toast.error('Amount is below the minimum requirement.')
+        } else if (error.message.includes('Token not supported')) {
+          toast.error('Selected token is not supported.')
+        } else {
+          toast.error(`Failed to create vault: ${error.message}`)
+        }
+      } else {
+        toast.error('Failed to create vault. Please try again.')
+      }
     } finally {
       setIsCreating(false)
     }
@@ -210,7 +317,7 @@ export default function CreateVaultPage() {
               {currentStep === 3 && 'Set Your Goal'}
             </CardTitle>
             <CardDescription>
-              {currentStep === 1 && 'Select the currency and amount you want to save'}
+              {currentStep === 1 && 'Select the currency and amount you want to save. You will need to approve token spending if this is your first time.'}
               {currentStep === 2 && 'Choose how long you want to lock your funds'}
               {currentStep === 3 && 'Describe your savings goal for motivation'}
             </CardDescription>
@@ -241,6 +348,11 @@ export default function CreateVaultPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                  {formData.token && userTokenBalance && (
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Balance: {Number(userTokenBalance) / 10**18} {formData.token}
+                    </p>
+                  )}
                 </div>
 
                 <div>
