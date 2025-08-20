@@ -1,17 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
  * @title PenaltyManager
  * @dev Manages penalty calculations and burning for early withdrawals
  */
-contract PenaltyManager is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, UUPSUpgradeable {
+contract PenaltyManager is Ownable, ReentrancyGuard {
     
     // Default penalty percentage (10% = 1000 basis points)
     uint256 public penaltyPercentage = 1000; // 10%
@@ -31,23 +29,14 @@ contract PenaltyManager is Initializable, OwnableUpgradeable, ReentrancyGuardUpg
     event PenaltyPercentageUpdated(uint256 oldPercentage, uint256 newPercentage, address indexed updater);
     event TreasuryAddressUpdated(address indexed oldTreasury, address indexed newTreasury, address indexed updater);
     event PenaltyManagerInitialized(address indexed owner, uint256 initialPenaltyPercentage, address initialTreasury);
-    event PenaltyManagerUpgraded(address indexed implementation);
+
     event EmergencyRecovery(address indexed token, uint256 amount, address indexed recipient, address indexed recoverer);
     
-    /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() {
-        _disableInitializers();
-    }
-    
     /**
-     * @dev Initialize the contract
+     * @dev Constructor
      * @param _owner The contract owner
      */
-    function initialize(address _owner) public initializer {
-        __Ownable_init(_owner);
-        __ReentrancyGuard_init();
-        __UUPSUpgradeable_init();
-        
+    constructor(address _owner) Ownable(_owner) {
         treasuryAddress = _owner; // Set treasury to owner address
         
         emit PenaltyManagerInitialized(_owner, penaltyPercentage, treasuryAddress);
@@ -206,10 +195,5 @@ contract PenaltyManager is Initializable, OwnableUpgradeable, ReentrancyGuardUpg
         emit EmergencyRecovery(token, amount, recipient, msg.sender);
     }
     
-    /**
-     * @dev Required by UUPSUpgradeable
-     */
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {
-        emit PenaltyManagerUpgraded(newImplementation);
-    }
+
 }

@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
@@ -12,7 +10,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
  * @title SavingsVault
  * @dev Individual vault contract for time-locked savings
  */
-contract SavingsVault is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, UUPSUpgradeable {
+contract SavingsVault is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
     
     // Vault status enum
@@ -77,28 +75,19 @@ contract SavingsVault is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         _;
     }
     
-    /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() {
-        _disableInitializers();
-    }
-    
     /**
-     * @dev Initialize the vault
+     * @dev Constructor
      * @param _owner The vault owner
      * @param _token The token address
      * @param _amount The amount to lock
      * @param _duration The lock duration
      */
-    function initialize(
+    constructor(
         address _owner,
         address _token,
         uint256 _amount,
         uint256 _duration
-    ) public initializer {
-        __Ownable_init(_owner);
-        __ReentrancyGuard_init();
-        __UUPSUpgradeable_init();
-        
+    ) Ownable(_owner) {
         require(_owner != address(0), "Invalid owner");
         require(_token != address(0), "Invalid token");
         require(_amount > 0, "Amount must be greater than 0");
@@ -182,7 +171,10 @@ contract SavingsVault is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
         vault.status = VaultStatus.WITHDRAWN_EARLY;
         vault.isActive = false;
         
-        // Transfer remaining amount to owner (no penalty transfer here)
+        // Transfer penalty to factory (which will send to treasury)
+        IERC20(vault.token).safeTransfer(msg.sender, penaltyAmount);
+        
+        // Transfer remaining amount to owner
         IERC20(vault.token).safeTransfer(vault.owner, remainingAmount);
         
         emit EarlyWithdrawal(vault.owner, penaltyAmount, remainingAmount, block.timestamp);
@@ -289,10 +281,5 @@ contract SavingsVault is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
                duration == LOCK_1_YEAR;
     }
     
-    /**
-     * @dev Required by UUPSUpgradeable
-     */
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {
-        // Only owner can upgrade
-    }
+
 }

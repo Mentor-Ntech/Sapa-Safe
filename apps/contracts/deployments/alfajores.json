@@ -1,19 +1,19 @@
 {
   "network": "alfajores",
   "deployer": "0xFFC18dFBbF140D2508E11A87bD0529B9dC04eB88",
-  "timestamp": "2025-08-13T12:16:27.206Z",
+  "timestamp": "2025-08-19T19:25:02.910Z",
   "contracts": {
     "tokenRegistry": {
-      "implementation": "0x489A6563295E96aD48647D5B4e555D879C433b59",
-      "proxy": "0x8c3907ffc68f305A60d241a88D5b2d3C665eAcdF"
+      "implementation": "0x39f337563c8D28D86F7FC79A9720FE8A7C4d56d2",
+      "proxy": "0x83CFaAfc78D6dE5ba5BB64ff864e7C2e1633B964"
     },
     "penaltyManager": {
-      "implementation": "0xA3A5d917B952E73B61a92Aa311Dc70844e3d77cd",
-      "proxy": "0x7777e46157369afEfE40bc697Dc70c225667882f"
+      "implementation": "0xE95Fa3d0B86eFb34bb22305cb9570B4F4005f1F0",
+      "proxy": "0x618F1bD500Def86254B5669faE5F78A6DAb01081"
     },
     "vaultFactory": {
-      "implementation": "0x5fcC7d6A99Ca919463E3b895d93aAfBe2B126095",
-      "proxy": "0xb6BEE6fF5747865Bb2b6069B11e22ba169cF7A12"
+      "implementation": "0xB82aA9F1C6F534Dd4c567a81Dcd2cdD7ae0456B5",
+      "proxy": "0xea956c866272949A231e7D0dF71FC3efd49d143E"
     }
   }
 }

@@ -1,16 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
  * @title TokenRegistry
  * @dev Manages supported African Mento tokens for SapaSafe
  */
-contract TokenRegistry is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, UUPSUpgradeable {
+contract TokenRegistry is Ownable, ReentrancyGuard {
     
     struct TokenInfo {
         string symbol;
@@ -34,22 +32,13 @@ contract TokenRegistry is Initializable, OwnableUpgradeable, ReentrancyGuardUpgr
     event TokenRemoved(address indexed token, string symbol, string country);
     event TokenLimitsUpdated(address indexed token, uint256 oldMinAmount, uint256 newMinAmount);
     event TokenRegistryInitialized(address indexed owner, uint256 tokenCount);
-    event TokenRegistryUpgraded(address indexed implementation);
-    
-    /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() {
-        _disableInitializers();
-    }
+
     
     /**
-     * @dev Initialize the contract
+     * @dev Constructor
      * @param _owner The contract owner
      */
-    function initialize(address _owner) public initializer {
-        __Ownable_init(_owner);
-        __ReentrancyGuard_init();
-        __UUPSUpgradeable_init();
-        
+    constructor(address _owner) Ownable(_owner) {
         _initializeAfricanTokens();
         
         emit TokenRegistryInitialized(_owner, supportedTokens.length);
@@ -218,10 +207,5 @@ contract TokenRegistry is Initializable, OwnableUpgradeable, ReentrancyGuardUpgr
                amount >= tokenInfo.minAmount;
     }
     
-    /**
-     * @dev Required by UUPSUpgradeable
-     */
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {
-        emit TokenRegistryUpgraded(newImplementation);
-    }
+
 }
