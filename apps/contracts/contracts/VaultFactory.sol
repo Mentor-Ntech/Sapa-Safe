@@ -383,7 +383,7 @@ contract VaultFactory is Ownable, ReentrancyGuard {
         
         for (uint256 i = 0; i < userVaultsList.length; i++) {
             SavingsVault.Vault memory vaultInfo = SavingsVault(userVaultsList[i]).getVaultInfo();
-            if (vaultInfo.isActive && vaultInfo.status == SavingsVault.VaultStatus.LOCKED) {
+            if (vaultInfo.isActive && vaultInfo.status == SavingsVault.VaultStatus.ACTIVE) {
                 activeVaults[activeCount] = userVaultsList[i];
                 activeCount++;
             }
@@ -616,6 +616,151 @@ contract VaultFactory is Ownable, ReentrancyGuard {
         currentAmountLocked = analytics.currentLocked;
         
         return (totalVaults, activeVaults, completedVaults, earlyWithdrawals, totalAmountSaved, currentAmountLocked);
+    }
+    
+
+    
+    /**
+     * @dev Get user vaults by status
+     * @param user The user address
+     * @param status The vault status to filter by
+     * @return Array of vault addresses with the specified status
+     */
+    function getUserVaultsByStatus(address user, SavingsVault.VaultStatus status) external view returns (address[] memory) {
+        address[] memory allUserVaults = userVaults[user];
+        address[] memory filteredVaults = new address[](allUserVaults.length);
+        uint256 count = 0;
+        
+        for (uint256 i = 0; i < allUserVaults.length; i++) {
+            SavingsVault vault = SavingsVault(allUserVaults[i]);
+            if (vault.getVaultStatus() == status) {
+                filteredVaults[count] = allUserVaults[i];
+                count++;
+            }
+        }
+        
+        // Resize array to actual count
+        address[] memory result = new address[](count);
+        for (uint256 i = 0; i < count; i++) {
+            result[i] = filteredVaults[i];
+        }
+        
+        return result;
+    }
+    
+    /**
+     * @dev Get vault status summary for a user
+     * @param user The user address
+     * @return activeCount Number of active vaults
+     * @return completedCount Number of completed vaults
+     * @return earlyWithdrawnCount Number of early withdrawn vaults
+     * @return terminatedCount Number of terminated vaults
+     */
+    function getUserVaultStatusSummary(address user) external view returns (
+        uint256 activeCount,
+        uint256 completedCount,
+        uint256 earlyWithdrawnCount,
+        uint256 terminatedCount
+    ) {
+        address[] memory allUserVaults = userVaults[user];
+        
+        for (uint256 i = 0; i < allUserVaults.length; i++) {
+            SavingsVault vault = SavingsVault(allUserVaults[i]);
+            SavingsVault.VaultStatus status = vault.getVaultStatus();
+            
+            if (status == SavingsVault.VaultStatus.ACTIVE) {
+                activeCount++;
+            } else if (status == SavingsVault.VaultStatus.COMPLETED) {
+                completedCount++;
+            } else if (status == SavingsVault.VaultStatus.WITHDRAWN_EARLY) {
+                earlyWithdrawnCount++;
+            } else if (status == SavingsVault.VaultStatus.TERMINATED) {
+                terminatedCount++;
+            }
+        }
+        
+        return (activeCount, completedCount, earlyWithdrawnCount, terminatedCount);
+    }
+    
+    /**
+     * @dev Get user completed vaults
+     * @param user The user address
+     * @return Array of completed vault addresses
+     */
+    function getUserCompletedVaults(address user) external view returns (address[] memory) {
+        address[] memory allUserVaults = userVaults[user];
+        address[] memory filteredVaults = new address[](allUserVaults.length);
+        uint256 count = 0;
+        
+        for (uint256 i = 0; i < allUserVaults.length; i++) {
+            SavingsVault vault = SavingsVault(allUserVaults[i]);
+            if (vault.getVaultStatus() == SavingsVault.VaultStatus.COMPLETED) {
+                filteredVaults[count] = allUserVaults[i];
+                count++;
+            }
+        }
+        
+        // Resize array to actual count
+        address[] memory result = new address[](count);
+        for (uint256 i = 0; i < count; i++) {
+            result[i] = filteredVaults[i];
+        }
+        
+        return result;
+    }
+    
+    /**
+     * @dev Get user early withdrawn vaults
+     * @param user The user address
+     * @return Array of early withdrawn vault addresses
+     */
+    function getUserEarlyWithdrawnVaults(address user) external view returns (address[] memory) {
+        address[] memory allUserVaults = userVaults[user];
+        address[] memory filteredVaults = new address[](allUserVaults.length);
+        uint256 count = 0;
+        
+        for (uint256 i = 0; i < allUserVaults.length; i++) {
+            SavingsVault vault = SavingsVault(allUserVaults[i]);
+            if (vault.getVaultStatus() == SavingsVault.VaultStatus.WITHDRAWN_EARLY) {
+                filteredVaults[count] = allUserVaults[i];
+                count++;
+            }
+        }
+        
+        // Resize array to actual count
+        address[] memory result = new address[](count);
+        for (uint256 i = 0; i < count; i++) {
+            result[i] = filteredVaults[i];
+        }
+        
+        return result;
+    }
+    
+    /**
+     * @dev Get user terminated vaults
+     * @param user The user address
+     * @return Array of terminated vault addresses
+     */
+    function getUserTerminatedVaults(address user) external view returns (address[] memory) {
+        address[] memory allUserVaults = userVaults[user];
+        address[] memory filteredVaults = new address[](allUserVaults.length);
+        uint256 count = 0;
+        
+        for (uint256 i = 0; i < allUserVaults.length; i++) {
+            SavingsVault vault = SavingsVault(allUserVaults[i]);
+            if (vault.getVaultStatus() == SavingsVault.VaultStatus.TERMINATED) {
+                filteredVaults[count] = allUserVaults[i];
+                count++;
+            }
+        }
+        
+        // Resize array to actual count
+        address[] memory result = new address[](count);
+        for (uint256 i = 0; i < count; i++) {
+            result[i] = filteredVaults[i];
+        }
+        
+        return result;
     }
     
 
