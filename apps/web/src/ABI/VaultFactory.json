@@ -385,7 +385,7 @@
   },
   {
     "inputs": [],
-    "name": "LOCK_1_MONTH",
+    "name": "MAX_MONTHS",
     "outputs": [
       {
         "internalType": "uint256",
@@ -398,72 +398,7 @@
   },
   {
     "inputs": [],
-    "name": "LOCK_1_YEAR",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "LOCK_2_MONTHS",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "LOCK_3_MONTHS",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "LOCK_4_MONTHS",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "LOCK_5_MONTHS",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "LOCK_6_MONTHS",
+    "name": "MAX_TARGET_AMOUNT",
     "outputs": [
       {
         "internalType": "uint256",
@@ -490,6 +425,32 @@
   {
     "inputs": [],
     "name": "MAX_VAULTS_PER_USER",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "MIN_MONTHS",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "MIN_TARGET_AMOUNT",
     "outputs": [
       {
         "internalType": "uint256",
@@ -528,12 +489,12 @@
       },
       {
         "internalType": "uint256",
-        "name": "amount",
+        "name": "targetAmount",
         "type": "uint256"
       },
       {
         "internalType": "uint256",
-        "name": "duration",
+        "name": "totalMonths",
         "type": "uint256"
       },
       {
@@ -587,19 +548,6 @@
       }
     ],
     "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "getAvailableLockDurations",
-    "outputs": [
-      {
-        "internalType": "uint256[]",
-        "name": "",
-        "type": "uint256[]"
-      }
-    ],
-    "stateMutability": "pure",
     "type": "function"
   },
   {
@@ -660,24 +608,6 @@
       }
     ],
     "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "getLockDurationOptions",
-    "outputs": [
-      {
-        "internalType": "string[]",
-        "name": "labels",
-        "type": "string[]"
-      },
-      {
-        "internalType": "uint256[]",
-        "name": "durations",
-        "type": "uint256[]"
-      }
-    ],
-    "stateMutability": "pure",
     "type": "function"
   },
   {
@@ -1132,66 +1062,69 @@
     "name": "getVaultInfo",
     "outputs": [
       {
-        "components": [
-          {
-            "internalType": "address",
-            "name": "owner",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "token",
-            "type": "address"
-          },
-          {
-            "internalType": "uint256",
-            "name": "amount",
-            "type": "uint256"
-          },
-          {
-            "internalType": "uint256",
-            "name": "lockStartTime",
-            "type": "uint256"
-          },
-          {
-            "internalType": "uint256",
-            "name": "lockDuration",
-            "type": "uint256"
-          },
-          {
-            "internalType": "uint256",
-            "name": "unlockTime",
-            "type": "uint256"
-          },
-          {
-            "internalType": "enum SavingsVault.VaultStatus",
-            "name": "status",
-            "type": "uint8"
-          },
-          {
-            "internalType": "bool",
-            "name": "isActive",
-            "type": "bool"
-          },
-          {
-            "internalType": "uint256",
-            "name": "withdrawalTime",
-            "type": "uint256"
-          },
-          {
-            "internalType": "uint256",
-            "name": "penaltyAmount",
-            "type": "uint256"
-          },
-          {
-            "internalType": "uint256",
-            "name": "returnedAmount",
-            "type": "uint256"
-          }
-        ],
-        "internalType": "struct SavingsVault.Vault",
-        "name": "",
-        "type": "tuple"
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "targetAmount",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "monthlyAmount",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "totalMonths",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "currentBalance",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "totalPaid",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "totalPenalties",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "startDate",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "endDate",
+        "type": "uint256"
+      },
+      {
+        "internalType": "enum SavingsVault.VaultStatus",
+        "name": "status",
+        "type": "uint8"
+      },
+      {
+        "internalType": "bool",
+        "name": "isActive",
+        "type": "bool"
+      },
+      {
+        "internalType": "uint256",
+        "name": "currentMonth",
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -1248,25 +1181,6 @@
       }
     ],
     "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "duration",
-        "type": "uint256"
-      }
-    ],
-    "name": "isValidLockDuration",
-    "outputs": [
-      {
-        "internalType": "bool",
-        "name": "",
-        "type": "bool"
-      }
-    ],
-    "stateMutability": "pure",
     "type": "function"
   },
   {

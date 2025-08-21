@@ -12,7 +12,10 @@ import {
   AlertTriangle,
   DollarSign,
   Calendar,
-  Loader2
+  Loader2,
+  PiggyBank,
+  Target,
+  TrendingUp
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -33,74 +36,83 @@ export function VaultCard({ vaultAddress, index, onViewDetails }: VaultCardProps
     return (Number(amount) / 10**decimals).toFixed(2)
   }
 
-  // Format time
-  const formatTime = (seconds: bigint) => {
-    if (!seconds || typeof seconds !== 'bigint') return '0 days'
-    const days = Number(seconds) / (24 * 60 * 60)
-    if (days < 1) return '< 1 day'
-    return `${Math.ceil(days)} days`
-  }
-
   // Get status info based on vault status
   const getStatusInfo = () => {
-    const vaultStatus = typeof vault.vaultStatus === 'number' ? vault.vaultStatus : 0
-    const isUnlocked = Boolean(vault.isUnlocked)
-    const canWithdraw = Boolean(vault.canWithdraw)
-    const canWithdrawEarly = Boolean(vault.canWithdrawEarly)
-    const isVaultActive = Boolean(vault.isVaultActive)
-
-    // Check vault status first
-    if (vaultStatus === 1) { // WITHDRAWN_EARLY
-      return {
-        color: "sapasafe-status-error",
-        icon: <AlertTriangle className="h-4 w-4" />,
-        text: "Early Withdrawn",
-        description: "Vault was withdrawn early with penalty"
-      }
-    } else if (vaultStatus === 2) { // COMPLETED
-      return {
-        color: "sapasafe-status-success",
-        icon: <CheckCircle className="h-4 w-4" />,
-        text: "Completed",
-        description: "Vault was successfully completed"
-      }
-    } else if (vaultStatus === 3) { // TERMINATED
-      return {
-        color: "sapasafe-status-error",
-        icon: <AlertTriangle className="h-4 w-4" />,
-        text: "Terminated",
-        description: "Vault was terminated"
-      }
-    } else if (vaultStatus === 0 && isVaultActive) { // ACTIVE
-      if (isUnlocked && canWithdraw) {
-        return {
-          color: "sapasafe-status-success",
-          icon: <CheckCircle className="h-4 w-4" />,
-          text: "Ready to Withdraw",
-          description: "Vault is unlocked and ready for withdrawal"
-        }
-      } else if (canWithdrawEarly) {
-        return {
-          color: "sapasafe-status-warning",
-          icon: <AlertTriangle className="h-4 w-4" />,
-          text: "Early Withdrawal Available",
-          description: "Can withdraw early with penalty"
-        }
-      } else {
-        return {
-          color: "sapasafe-status-info",
-          icon: <Clock className="h-4 w-4" />,
-          text: "Active",
-          description: "Vault is active and locked"
-        }
-      }
-    } else {
+    if (!vault.vaultInfo) {
       return {
         color: "sapasafe-status-info",
         icon: <Clock className="h-4 w-4" />,
-        text: "Unknown",
-        description: "Vault status unknown"
+        text: "Loading...",
+        description: "Loading vault information"
       }
+    }
+
+    const status = vault.vaultInfo.status
+    const isActive = vault.vaultInfo.isActive
+    const canWithdrawCompleted = Boolean(vault.canWithdrawCompleted)
+    const canWithdrawEarly = Boolean(vault.canWithdrawEarly)
+
+    switch (status) {
+      case 0: // ACTIVE
+        if (isActive) {
+          if (canWithdrawCompleted) {
+            return {
+              color: "sapasafe-status-success",
+              icon: <CheckCircle className="h-4 w-4" />,
+              text: "Ready to Withdraw",
+              description: "Savings plan completed - ready for withdrawal"
+            }
+          } else if (canWithdrawEarly) {
+            return {
+              color: "sapasafe-status-warning",
+              icon: <AlertTriangle className="h-4 w-4" />,
+              text: "Early Withdrawal Available",
+              description: "Can withdraw early with 10% penalty"
+            }
+          } else {
+            return {
+              color: "sapasafe-status-info",
+              icon: <Clock className="h-4 w-4" />,
+              text: "Active",
+              description: "Monthly savings plan in progress"
+            }
+          }
+        } else {
+          return {
+            color: "sapasafe-status-info",
+            icon: <Clock className="h-4 w-4" />,
+            text: "Active",
+            description: "Vault is active"
+          }
+        }
+      case 1: // WITHDRAWN_EARLY
+        return {
+          color: "sapasafe-status-error",
+          icon: <AlertTriangle className="h-4 w-4" />,
+          text: "Early Withdrawn",
+          description: "Vault was withdrawn early with penalty"
+        }
+      case 2: // COMPLETED
+        return {
+          color: "sapasafe-status-success",
+          icon: <CheckCircle className="h-4 w-4" />,
+          text: "Completed",
+          description: "Savings plan successfully completed"
+        }
+      case 3: // TERMINATED
+        return {
+          color: "sapasafe-status-error",
+          icon: <AlertTriangle className="h-4 w-4" />,
+          text: "Terminated",
+          description: "Vault was terminated"
+        }
+      default:
+        return {
+          color: "sapasafe-status-info",
+          icon: <Clock className="h-4 w-4" />,
+          text: "Unknown",
+          description: "Vault status unknown"
+        }
     }
   }
 
@@ -116,12 +128,8 @@ export function VaultCard({ vaultAddress, index, onViewDetails }: VaultCardProps
     try {
       setIsWithdrawing(true)
       
-      // Calculate penalty
-      const balance = typeof vault.vaultBalance === 'bigint' ? vault.vaultBalance : 0n
-      const { penalty } = await penaltyManager.calculatePenalty(balance)
-      
-      // Perform early withdrawal
-      await vault.withdrawEarlyFunds(penalty)
+      // Perform early withdrawal (penalty calculated in contract)
+      await vault.withdrawEarlyFunds()
       
       toast.success('Early withdrawal initiated! Check your wallet for confirmation.')
     } catch (error) {
@@ -134,7 +142,7 @@ export function VaultCard({ vaultAddress, index, onViewDetails }: VaultCardProps
 
   // Handle normal withdrawal
   const handleWithdraw = async () => {
-    if (!vault.canWithdraw) {
+    if (!vault.canWithdrawCompleted) {
       toast.error('Vault is not ready for withdrawal')
       return
     }
@@ -151,13 +159,51 @@ export function VaultCard({ vaultAddress, index, onViewDetails }: VaultCardProps
     }
   }
 
+  // Get progress percentage
+  const getProgressPercentage = () => {
+    if (!vault.progressPercentage) return 0
+    return Number(vault.progressPercentage)
+  }
+
+  // Get current balance
+  const getCurrentBalance = () => {
+    if (!vault.vaultInfo) return '0'
+    return formatAmount(vault.vaultInfo.currentBalance)
+  }
+
+  // Get target amount
+  const getTargetAmount = () => {
+    if (!vault.vaultInfo) return '0'
+    return formatAmount(vault.vaultInfo.targetAmount)
+  }
+
+  // Get monthly amount
+  const getMonthlyAmount = () => {
+    if (!vault.vaultInfo) return '0'
+    return formatAmount(vault.vaultInfo.monthlyAmount)
+  }
+
   // Loading state
-  if (vault.isLoadingVaultInfo || vault.isLoadingBalance) {
+  if (vault.isLoadingVaultInfo) {
     return (
       <Card className="sapasafe-card">
         <CardContent className="p-6">
           <div className="flex items-center justify-center h-32">
             <Loader2 className="h-6 w-6 animate-spin" />
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // No vault info
+  if (!vault.vaultInfo) {
+    return (
+      <Card className="sapasafe-card">
+        <CardContent className="p-6">
+          <div className="text-center">
+            <AlertTriangle className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+            <p className="sapasafe-text-sm text-muted-foreground">Vault not found</p>
           </div>
         </CardContent>
       </Card>
@@ -170,35 +216,70 @@ export function VaultCard({ vaultAddress, index, onViewDetails }: VaultCardProps
         <div className="flex justify-between items-start">
           <div>
             <CardTitle className="sapasafe-heading-4">
-              Vault #{index + 1}
+              Monthly Savings #{index + 1}
             </CardTitle>
             <CardDescription>
               {vaultAddress.slice(0, 8)}...{vaultAddress.slice(-6)}
             </CardDescription>
           </div>
           <Badge className={statusInfo.color}>
-            {statusInfo.icon}
-            {statusInfo.text}
+            <div className="flex items-center gap-1">
+              {statusInfo.icon}
+              <span>{statusInfo.text}</span>
+            </div>
           </Badge>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Progress Bar */}
+        <div className="space-y-2">
+          <div className="flex justify-between items-center">
+            <span className="sapasafe-text-xs text-muted-foreground">Progress</span>
+            <span className="sapasafe-text-xs font-medium">
+              {getProgressPercentage()}%
+            </span>
+          </div>
+          <div className="w-full bg-muted rounded-full h-2">
+            <div 
+              className="h-2 rounded-full transition-all duration-300 bg-primary"
+              style={{ 
+                width: `${getProgressPercentage()}%`
+              }}
+            ></div>
+          </div>
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span>Month {Number(vault.currentMonth) || 0} of {vault.vaultInfo.totalMonths}</span>
+            <span>{vault.paymentSummary?.completedPaymentsCount || 0} payments</span>
+          </div>
+        </div>
+
         {/* Vault Info */}
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1">
-            <p className="sapasafe-text-xs text-muted-foreground">Balance</p>
+            <p className="sapasafe-text-xs text-muted-foreground">Current Balance</p>
             <p className="sapasafe-heading-4 flex items-center gap-1">
-              <DollarSign className="h-4 w-4 text-primary" />
-              {formatAmount(typeof vault.vaultBalance === 'bigint' ? vault.vaultBalance : 0n)}
+              <PiggyBank className="h-4 w-4 text-success" />
+              {getCurrentBalance()}
             </p>
           </div>
           <div className="space-y-1">
-            <p className="sapasafe-text-xs text-muted-foreground">Time Remaining</p>
+            <p className="sapasafe-text-xs text-muted-foreground">Target Amount</p>
             <p className="sapasafe-heading-4 flex items-center gap-1">
-              <Calendar className="h-4 w-4 text-primary" />
-              {formatTime(typeof vault.remainingTime === 'bigint' ? vault.remainingTime : 0n)}
+              <Target className="h-4 w-4 text-primary" />
+              {getTargetAmount()}
             </p>
           </div>
+        </div>
+
+        {/* Monthly Payment Info */}
+        <div className="p-3 bg-primary/5 rounded-lg border border-primary/20">
+          <div className="flex items-center gap-2 mb-1">
+            <TrendingUp className="h-4 w-4 text-primary" />
+            <p className="sapasafe-text-xs font-medium text-primary">Monthly Payment</p>
+          </div>
+          <p className="sapasafe-text-sm">
+            {getMonthlyAmount()} per month
+          </p>
         </div>
 
         {/* Status Description */}
@@ -220,7 +301,7 @@ export function VaultCard({ vaultAddress, index, onViewDetails }: VaultCardProps
             Details
           </Button>
           
-          {Boolean(vault.canWithdraw) && (
+          {Boolean(vault.canWithdrawCompleted) && (
             <Button 
               size="sm" 
               className="flex-1 sapasafe-btn-primary"
@@ -236,7 +317,7 @@ export function VaultCard({ vaultAddress, index, onViewDetails }: VaultCardProps
             </Button>
           )}
           
-          {Boolean(vault.canWithdrawEarly) && !Boolean(vault.canWithdraw) && (
+          {Boolean(vault.canWithdrawEarly) && !Boolean(vault.canWithdrawCompleted) && (
             <Button 
               size="sm" 
               className="flex-1 border-error/20 text-error hover:bg-error/5"
