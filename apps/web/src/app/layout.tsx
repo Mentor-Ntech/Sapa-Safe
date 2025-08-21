@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 
-import { AppProvider } from "@/components/wallet-provider"
+import { DynamicWalletProvider } from "@/components/dynamic-wallet-provider"
 import { NavProvider } from "@/components/nav-context"
 import { ConditionalMobileNav } from "@/components/conditional-mobile-nav"
 import { Toaster } from 'sonner';
@@ -29,7 +29,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <AppProvider>
+        <DynamicWalletProvider>
           <NavProvider>
             <div className="relative flex min-h-screen flex-col">
               <main className="flex-1">
@@ -44,7 +44,7 @@ export default function RootLayout({
               duration={4000}
             />
           </NavProvider>
-        </AppProvider>
+        </DynamicWalletProvider>
       </body>
     </html>
   );
