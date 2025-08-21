@@ -67,14 +67,11 @@ contract VaultFactory is Ownable, ReentrancyGuard {
     // Vault counter
     uint256 public vaultCounter;
     
-    // Lock duration constants (same as SavingsVault)
-    uint256 public constant LOCK_1_MONTH = 30 days;
-    uint256 public constant LOCK_2_MONTHS = 60 days;
-    uint256 public constant LOCK_3_MONTHS = 90 days;
-    uint256 public constant LOCK_4_MONTHS = 120 days;
-    uint256 public constant LOCK_5_MONTHS = 150 days;
-    uint256 public constant LOCK_6_MONTHS = 180 days;
-    uint256 public constant LOCK_1_YEAR = 365 days;
+    // Monthly savings constants
+    uint256 public constant MIN_MONTHS = 1;
+    uint256 public constant MAX_MONTHS = 12;
+    uint256 public constant MIN_TARGET_AMOUNT = 100000000000000000000; // 100 tokens minimum
+    uint256 public constant MAX_TARGET_AMOUNT = 1000000000000000000000000; // 1M tokens maximum
     
     // Events
     event VaultCreated(address indexed user, address indexed vault, address indexed token, uint256 amount, uint256 duration, uint256 vaultId);
@@ -95,24 +92,11 @@ contract VaultFactory is Ownable, ReentrancyGuard {
     // Modifiers
     modifier validToken(address token) {
         require(tokenRegistry.isTokenSupported(token), "Token not supported");
+        require(token.code.length > 0, "Token is not a contract");
         _;
     }
     
-    modifier validAmount(address token, uint256 amount) {
-        require(tokenRegistry.validateAmount(token, amount), "Amount below minimum");
-        _;
-    }
-    
-    modifier validDuration(uint256 duration) {
-        require(duration >= 30 days && duration <= 365 days, "Invalid duration");
-        require(
-            duration == LOCK_1_MONTH || duration == LOCK_2_MONTHS || 
-            duration == LOCK_3_MONTHS || duration == LOCK_4_MONTHS || 
-            duration == LOCK_5_MONTHS || duration == LOCK_6_MONTHS || 
-            duration == LOCK_1_YEAR, "Duration not predefined"
-        );
-        _;
-    }
+
     
     /**
      * @dev Constructor
@@ -137,44 +121,48 @@ contract VaultFactory is Ownable, ReentrancyGuard {
     uint256 public constant MAX_TOTAL_VAULTS = 10000;
     
     /**
-     * @dev Create a new vault
-     * @param token The token to lock
-     * @param amount The amount to lock
-     * @param duration The lock duration in seconds
+     * @dev Create a new monthly savings vault
+     * @param token The token address
+     * @param targetAmount The total goal amount
+     * @param totalMonths The total number of months
      * @param deadline Transaction deadline to prevent stale transactions
      * @return vaultAddress The address of the created vault
      */
     function createVault(
         address token,
-        uint256 amount,
-        uint256 duration,
+        uint256 targetAmount,
+        uint256 totalMonths,
         uint256 deadline
-    ) external validToken(token) validAmount(token, amount) validDuration(duration) whenNotPaused nonReentrant returns (address vaultAddress) {
+    ) external validToken(token) whenNotPaused nonReentrant returns (address vaultAddress) {
         // Check deadline
         require(block.timestamp <= deadline, "Transaction expired");
+        
+        // Validate parameters
+        require(targetAmount >= MIN_TARGET_AMOUNT, "Target amount too small");
+        require(targetAmount <= MAX_TARGET_AMOUNT, "Target amount too large");
+        require(totalMonths >= MIN_MONTHS, "Too few months");
+        require(totalMonths <= MAX_MONTHS, "Too many months");
         
         // Check bounds
         require(userVaults[msg.sender].length < MAX_VAULTS_PER_USER, "Too many vaults per user");
         require(allVaults.length < MAX_TOTAL_VAULTS, "Max total vaults reached");
         
         // Create new vault contract with constructor parameters
-        SavingsVault vault = new SavingsVault(msg.sender, token, amount, duration);
+        SavingsVault vault = new SavingsVault(msg.sender, token, targetAmount, totalMonths);
         vaultAddress = address(vault);
         
-        // Transfer tokens directly to vault (not through factory) - CEI pattern
-        IERC20(token).safeTransferFrom(msg.sender, vaultAddress, amount);
-        
+        // No initial token transfer - users will pay monthly
         // Track vault (after external calls)
         userVaults[msg.sender].push(vaultAddress);
         userVaultsByToken[msg.sender][token].push(vaultAddress);
         allVaults.push(vaultAddress);
         vaultCounter++;
         
-        // Update analytics
-        _updateUserAnalytics(msg.sender, amount, duration, true, false);
-        _updateGlobalAnalytics(amount, duration, true, false);
+        // Update analytics (no initial amount for monthly savings)
+        _updateUserAnalytics(msg.sender, 0, totalMonths * 30 days, true, false);
+        _updateGlobalAnalytics(0, totalMonths * 30 days, true, false);
         
-        emit VaultCreated(msg.sender, vaultAddress, token, amount, duration, vaultCounter);
+        emit VaultCreated(msg.sender, vaultAddress, token, targetAmount, totalMonths, vaultCounter);
         
         return vaultAddress;
     }
@@ -236,34 +224,59 @@ contract VaultFactory is Ownable, ReentrancyGuard {
     /**
      * @dev Get vault info
      * @param vaultAddress The vault address
-     * @return Vault information
+     * @return owner The vault owner
+     * @return token The token address
+     * @return targetAmount The target amount
+     * @return monthlyAmount The monthly payment amount
+     * @return totalMonths The total number of months
+     * @return currentBalance The current balance
+     * @return totalPaid The total amount paid
+     * @return totalPenalties The total penalties
+     * @return startDate The start date
+     * @return endDate The end date
+     * @return status The vault status
+     * @return isActive Whether the vault is active
+     * @return currentMonth The current month
      */
-    function getVaultInfo(address vaultAddress) external view returns (SavingsVault.Vault memory) {
+    function getVaultInfo(address vaultAddress) external view returns (
+        address owner,
+        address token,
+        uint256 targetAmount,
+        uint256 monthlyAmount,
+        uint256 totalMonths,
+        uint256 currentBalance,
+        uint256 totalPaid,
+        uint256 totalPenalties,
+        uint256 startDate,
+        uint256 endDate,
+        SavingsVault.VaultStatus status,
+        bool isActive,
+        uint256 currentMonth
+    ) {
         return SavingsVault(vaultAddress).getVaultInfo();
     }
     
     /**
-     * @dev Withdraw from vault (completed lock period)
+     * @dev Withdraw from completed vault
      * @param vaultAddress The vault address
      */
     function withdrawFromVault(address vaultAddress) external whenNotPaused nonReentrant {
         SavingsVault vault = SavingsVault(vaultAddress);
-        SavingsVault.Vault memory vaultInfo = vault.getVaultInfo();
         
-        require(vaultInfo.owner == msg.sender, "Not vault owner");
-        require(vault.canWithdraw(), "Cannot withdraw yet");
+        require(vault.canWithdrawCompleted(), "Cannot withdraw yet");
         
-        // Get amount before withdrawal
-        uint256 amount = vault.getVaultBalance();
+        // Get vault info before withdrawal
+        (address owner, , , , , uint256 currentBalance, , , , , , , ) = vault.getVaultInfo();
+        require(owner == msg.sender, "Not vault owner");
         
         // Update analytics first (CEI pattern)
-        _updateUserAnalytics(msg.sender, amount, 0, false, true);
-        _updateGlobalAnalytics(amount, 0, false, true);
+        _updateUserAnalytics(msg.sender, currentBalance, 0, false, true);
+        _updateGlobalAnalytics(currentBalance, 0, false, true);
         
         // Perform withdrawal
         vault.withdrawCompleted();
         
-        emit VaultWithdrawn(msg.sender, vaultAddress, amount, block.timestamp);
+        emit VaultWithdrawn(msg.sender, vaultAddress, currentBalance, block.timestamp);
     }
     
     /**
@@ -272,22 +285,25 @@ contract VaultFactory is Ownable, ReentrancyGuard {
      */
     function withdrawEarlyFromVault(address vaultAddress) external whenNotPaused nonReentrant {
         SavingsVault vault = SavingsVault(vaultAddress);
-        SavingsVault.Vault memory vaultInfo = vault.getVaultInfo();
         
-        require(vaultInfo.owner == msg.sender, "Not vault owner");
         require(vault.canWithdrawEarly(), "Cannot withdraw early");
         
-        // Calculate penalty
-        (uint256 penalty, ) = penaltyManager.calculatePenalty(vaultInfo.amount);
+        // Get vault info before withdrawal
+        (address owner, , , , , uint256 currentBalance, , , , , , , ) = vault.getVaultInfo();
+        require(owner == msg.sender, "Not vault owner");
+        
+        // Calculate 10% penalty
+        uint256 penalty = (currentBalance * 10) / 100;
+        uint256 amountToReturn = currentBalance - penalty;
         
         // Update analytics first (CEI pattern)
-        _updateUserAnalytics(msg.sender, vaultInfo.amount - penalty, 0, false, false);
-        _updateGlobalAnalytics(vaultInfo.amount - penalty, 0, false, false);
+        _updateUserAnalytics(msg.sender, amountToReturn, 0, false, false);
+        _updateGlobalAnalytics(amountToReturn, 0, false, false);
         
-        // Perform early withdrawal (this will handle penalty transfer)
-        vault.withdrawEarly(penalty);
+        // Perform early withdrawal
+        vault.withdrawEarly();
         
-        emit VaultWithdrawnEarly(msg.sender, vaultAddress, penalty, vaultInfo.amount - penalty, block.timestamp);
+        emit VaultWithdrawnEarly(msg.sender, vaultAddress, penalty, amountToReturn, block.timestamp);
     }
     
     /**
@@ -382,8 +398,8 @@ contract VaultFactory is Ownable, ReentrancyGuard {
         uint256 activeCount = 0;
         
         for (uint256 i = 0; i < userVaultsList.length; i++) {
-            SavingsVault.Vault memory vaultInfo = SavingsVault(userVaultsList[i]).getVaultInfo();
-            if (vaultInfo.isActive && vaultInfo.status == SavingsVault.VaultStatus.ACTIVE) {
+            (,,,,,,,,,, SavingsVault.VaultStatus status, bool isActive, ) = SavingsVault(userVaultsList[i]).getVaultInfo();
+            if (isActive && status == SavingsVault.VaultStatus.ACTIVE) {
                 activeVaults[activeCount] = userVaultsList[i];
                 activeCount++;
             }
@@ -397,53 +413,7 @@ contract VaultFactory is Ownable, ReentrancyGuard {
         return activeVaults;
     }
     
-    /**
-     * @dev Get all available lock durations
-     */
-    function getAvailableLockDurations() external pure returns (uint256[] memory) {
-        uint256[] memory durations = new uint256[](7);
-        durations[0] = LOCK_1_MONTH;
-        durations[1] = LOCK_2_MONTHS;
-        durations[2] = LOCK_3_MONTHS;
-        durations[3] = LOCK_4_MONTHS;
-        durations[4] = LOCK_5_MONTHS;
-        durations[5] = LOCK_6_MONTHS;
-        durations[6] = LOCK_1_YEAR;
-        return durations;
-    }
-    
-    /**
-     * @dev Get lock duration options with labels
-     */
-    function getLockDurationOptions() external pure returns (string[] memory labels, uint256[] memory durations) {
-        labels = new string[](7);
-        durations = new uint256[](7);
-        
-        labels[0] = "1 Month";
-        labels[1] = "2 Months";
-        labels[2] = "3 Months";
-        labels[3] = "4 Months";
-        labels[4] = "5 Months";
-        labels[5] = "6 Months";
-        labels[6] = "1 Year";
-        
-        durations[0] = LOCK_1_MONTH;
-        durations[1] = LOCK_2_MONTHS;
-        durations[2] = LOCK_3_MONTHS;
-        durations[3] = LOCK_4_MONTHS;
-        durations[4] = LOCK_5_MONTHS;
-        durations[5] = LOCK_6_MONTHS;
-        durations[6] = LOCK_1_YEAR;
-        
-        return (labels, durations);
-    }
-    
-    /**
-     * @dev Validate lock duration
-     */
-    function isValidLockDuration(uint256 duration) external pure returns (bool) {
-        return duration >= 30 days && duration <= 365 days;
-    }
+
     
     /**
      * @dev Update user analytics
@@ -633,7 +603,8 @@ contract VaultFactory is Ownable, ReentrancyGuard {
         
         for (uint256 i = 0; i < allUserVaults.length; i++) {
             SavingsVault vault = SavingsVault(allUserVaults[i]);
-            if (vault.getVaultStatus() == status) {
+            (,,,,,,,,,, SavingsVault.VaultStatus vaultStatus, , ) = vault.getVaultInfo();
+            if (vaultStatus == status) {
                 filteredVaults[count] = allUserVaults[i];
                 count++;
             }
@@ -662,20 +633,28 @@ contract VaultFactory is Ownable, ReentrancyGuard {
         uint256 earlyWithdrawnCount,
         uint256 terminatedCount
     ) {
+        require(user != address(0), "Invalid user address");
+        
         address[] memory allUserVaults = userVaults[user];
         
         for (uint256 i = 0; i < allUserVaults.length; i++) {
-            SavingsVault vault = SavingsVault(allUserVaults[i]);
-            SavingsVault.VaultStatus status = vault.getVaultStatus();
-            
-            if (status == SavingsVault.VaultStatus.ACTIVE) {
-                activeCount++;
-            } else if (status == SavingsVault.VaultStatus.COMPLETED) {
-                completedCount++;
-            } else if (status == SavingsVault.VaultStatus.WITHDRAWN_EARLY) {
-                earlyWithdrawnCount++;
-            } else if (status == SavingsVault.VaultStatus.TERMINATED) {
-                terminatedCount++;
+            try SavingsVault(allUserVaults[i]).getVaultInfo() returns (
+                address, address, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, SavingsVault.VaultStatus, bool, uint256
+            ) {
+                (,,,,,,,,,, SavingsVault.VaultStatus status, , ) = SavingsVault(allUserVaults[i]).getVaultInfo();
+                
+                if (status == SavingsVault.VaultStatus.ACTIVE) {
+                    activeCount++;
+                } else if (status == SavingsVault.VaultStatus.COMPLETED) {
+                    completedCount++;
+                } else if (status == SavingsVault.VaultStatus.WITHDRAWN_EARLY) {
+                    earlyWithdrawnCount++;
+                } else if (status == SavingsVault.VaultStatus.TERMINATED) {
+                    terminatedCount++;
+                }
+            } catch {
+                // Skip invalid vaults
+                continue;
             }
         }
         
@@ -694,7 +673,8 @@ contract VaultFactory is Ownable, ReentrancyGuard {
         
         for (uint256 i = 0; i < allUserVaults.length; i++) {
             SavingsVault vault = SavingsVault(allUserVaults[i]);
-            if (vault.getVaultStatus() == SavingsVault.VaultStatus.COMPLETED) {
+            (,,,,,,,,,, SavingsVault.VaultStatus status, , ) = vault.getVaultInfo();
+            if (status == SavingsVault.VaultStatus.COMPLETED) {
                 filteredVaults[count] = allUserVaults[i];
                 count++;
             }
@@ -721,7 +701,8 @@ contract VaultFactory is Ownable, ReentrancyGuard {
         
         for (uint256 i = 0; i < allUserVaults.length; i++) {
             SavingsVault vault = SavingsVault(allUserVaults[i]);
-            if (vault.getVaultStatus() == SavingsVault.VaultStatus.WITHDRAWN_EARLY) {
+            (,,,,,,,,,, SavingsVault.VaultStatus status, , ) = vault.getVaultInfo();
+            if (status == SavingsVault.VaultStatus.WITHDRAWN_EARLY) {
                 filteredVaults[count] = allUserVaults[i];
                 count++;
             }
@@ -748,7 +729,8 @@ contract VaultFactory is Ownable, ReentrancyGuard {
         
         for (uint256 i = 0; i < allUserVaults.length; i++) {
             SavingsVault vault = SavingsVault(allUserVaults[i]);
-            if (vault.getVaultStatus() == SavingsVault.VaultStatus.TERMINATED) {
+            (,,,,,,,,,, SavingsVault.VaultStatus status, , ) = vault.getVaultInfo();
+            if (status == SavingsVault.VaultStatus.TERMINATED) {
                 filteredVaults[count] = allUserVaults[i];
                 count++;
             }

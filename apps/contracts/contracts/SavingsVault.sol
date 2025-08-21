@@ -8,60 +8,100 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /**
  * @title SavingsVault
- * @dev Individual vault contract for time-locked savings
+ * @dev Individual vault contract for monthly savings with penalties
  */
 contract SavingsVault is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
     
-    // Vault status enum - improved for better tracking
+    // Vault status enum
     enum VaultStatus {
-        ACTIVE,           // Vault is active and locked
-        WITHDRAWN_EARLY,  // User withdrew early (penalty applied)
-        COMPLETED,        // User withdrew after lock period (no penalty)
-        TERMINATED        // Vault was terminated (emergency or admin action)
+        ACTIVE,           // Vault is active and accepting payments
+        WITHDRAWN_EARLY,  // User withdrew early (10% penalty applied)
+        COMPLETED,        // All payments completed successfully
+        TERMINATED        // Vault was terminated
     }
     
-    // Vault struct - enhanced with more tracking data
+    // Payment status enum
+    enum PaymentStatus {
+        PENDING,          // Payment not yet made
+        PAID,             // Payment made on time
+        MISSED,           // Payment missed (5% penalty applied)
+        DEFAULTED         // Payment defaulted
+    }
+    
+    // Monthly payment struct
+    struct MonthlyPayment {
+        uint256 dueDate;
+        uint256 amount;
+        PaymentStatus status;
+        uint256 penaltyAmount;  // 5% penalty if missed
+        bool penaltyPaid;
+    }
+    
+    // Vault struct
     struct Vault {
         address owner;
         address token;
-        uint256 amount;
-        uint256 lockStartTime;
-        uint256 lockDuration;
-        uint256 unlockTime;
+        uint256 targetAmount;        // Total goal amount
+        uint256 monthlyAmount;       // Monthly payment amount
+        uint256 totalMonths;         // Total number of months
+        uint256 currentBalance;      // Current amount saved
+        uint256 totalPaid;           // Total amount paid by user
+        uint256 totalPenalties;      // Total penalties paid
+        uint256 startDate;           // Vault start date
+        uint256 endDate;             // Expected completion date
         VaultStatus status;
         bool isActive;
-        uint256 withdrawalTime;      // When vault was withdrawn/terminated
-        uint256 penaltyAmount;       // Penalty amount if early withdrawal
-        uint256 returnedAmount;      // Amount returned to user
+        uint256 withdrawalTime;
+        uint256 earlyWithdrawalPenalty;  // 10% penalty for early withdrawal
+        uint256 returnedAmount;
     }
     
     // Vault data
     Vault public vault;
     
-    // Minimum lock duration (1 month = 30 days)
-    uint256 public constant MIN_LOCK_DURATION = 30 days;
+    // Monthly payments tracking
+    mapping(uint256 => MonthlyPayment) public monthlyPayments; // month index => payment details
+    uint256 public currentMonth; // Current month (1-based)
     
-    // Maximum lock duration (1 year = 365 days)
-    uint256 public constant MAX_LOCK_DURATION = 365 days;
+    // Penalty percentages
+    uint256 public constant MONTHLY_DEFAULT_PENALTY = 5; // 5% for missed payments
+    uint256 public constant EARLY_WITHDRAWAL_PENALTY = 10; // 10% for early withdrawal
     
-    // Predefined lock durations for easy selection
-    uint256 public constant LOCK_1_MONTH = 30 days;
-    uint256 public constant LOCK_2_MONTHS = 60 days;
-    uint256 public constant LOCK_3_MONTHS = 90 days;
-    uint256 public constant LOCK_4_MONTHS = 120 days;
-    uint256 public constant LOCK_5_MONTHS = 150 days;
-    uint256 public constant LOCK_6_MONTHS = 180 days;
-    uint256 public constant LOCK_1_YEAR = 365 days;
-    
-    // Events - enhanced with more details
-    event VaultCreated(address indexed owner, address indexed token, uint256 amount, uint256 duration, uint256 unlockTime);
-    event FundsLocked(address indexed owner, uint256 amount, uint256 unlockTime, uint256 lockStartTime);
-    event EarlyWithdrawal(address indexed owner, uint256 penalty, uint256 returned, uint256 timestamp);
-    event CompletedWithdrawal(address indexed owner, uint256 amount, uint256 timestamp);
-    event EmergencyWithdrawal(address indexed owner, uint256 amount, uint256 timestamp);
-    event VaultPaused(address indexed owner, uint256 timestamp);
-    event VaultResumed(address indexed owner, uint256 timestamp);
+    // Events
+    event VaultCreated(
+        address indexed owner, 
+        address indexed token, 
+        uint256 targetAmount, 
+        uint256 monthlyAmount, 
+        uint256 totalMonths,
+        uint256 startDate,
+        uint256 endDate
+    );
+    event MonthlyPaymentMade(
+        address indexed owner, 
+        uint256 month, 
+        uint256 amount, 
+        uint256 currentBalance
+    );
+    event MonthlyPaymentMissed(
+        address indexed owner, 
+        uint256 month, 
+        uint256 penaltyAmount, 
+        uint256 currentBalance
+    );
+    event EarlyWithdrawal(
+        address indexed owner, 
+        uint256 totalSaved, 
+        uint256 penalty, 
+        uint256 returned
+    );
+    event VaultCompleted(
+        address indexed owner, 
+        uint256 totalSaved, 
+        uint256 totalPaid, 
+        uint256 totalPenalties
+    );
     event VaultTerminated(address indexed owner, uint256 timestamp);
     
     // Modifiers
@@ -89,247 +129,412 @@ contract SavingsVault is Ownable, ReentrancyGuard {
      * @dev Constructor
      * @param _owner The vault owner
      * @param _token The token address
-     * @param _amount The amount to lock
-     * @param _duration The lock duration
+     * @param _targetAmount The total goal amount
+     * @param _totalMonths The total number of months
      */
     constructor(
         address _owner,
         address _token,
-        uint256 _amount,
-        uint256 _duration
+        uint256 _targetAmount,
+        uint256 _totalMonths
     ) Ownable(_owner) {
         require(_owner != address(0), "Invalid owner");
         require(_token != address(0), "Invalid token");
-        require(_amount > 0, "Amount must be greater than 0");
-        require(_duration >= MIN_LOCK_DURATION, "Duration too short (minimum 30 days)");
-        require(_duration <= MAX_LOCK_DURATION, "Duration too long (maximum 365 days)");
+        require(_targetAmount > 0, "Invalid target amount");
+        require(_totalMonths > 0 && _totalMonths <= 12, "Invalid months (1-12)");
+        
+        // Validate token is a contract
+        require(_token.code.length > 0, "Token is not a contract");
+        
+        uint256 monthlyAmount = _targetAmount / _totalMonths;
+        uint256 remainder = _targetAmount % _totalMonths;
+        require(monthlyAmount > 0, "Monthly amount too small");
         
         vault = Vault({
             owner: _owner,
             token: _token,
-            amount: _amount,
-            lockStartTime: block.timestamp,
-            lockDuration: _duration,
-            unlockTime: block.timestamp + _duration,
+            targetAmount: _targetAmount,
+            monthlyAmount: monthlyAmount,
+            totalMonths: _totalMonths,
+            currentBalance: 0,
+            totalPaid: 0,
+            totalPenalties: 0,
+            startDate: block.timestamp,
+            endDate: block.timestamp + (_totalMonths * 30 days),
             status: VaultStatus.ACTIVE,
             isActive: true,
             withdrawalTime: 0,
-            penaltyAmount: 0,
+            earlyWithdrawalPenalty: 0,
             returnedAmount: 0
         });
         
-        emit VaultCreated(_owner, _token, _amount, _duration, vault.unlockTime);
-        emit FundsLocked(_owner, _amount, vault.unlockTime, vault.lockStartTime);
+        currentMonth = 1;
+        
+        // Initialize monthly payment schedule with remainder on last month
+        for (uint256 i = 1; i <= _totalMonths; i++) {
+            uint256 paymentAmount = monthlyAmount;
+            if (i == _totalMonths && remainder > 0) {
+                paymentAmount += remainder;
+            }
+            
+            monthlyPayments[i] = MonthlyPayment({
+                dueDate: block.timestamp + (i * 30 days),
+                amount: paymentAmount,
+                status: PaymentStatus.PENDING,
+                penaltyAmount: 0,
+                penaltyPaid: false
+            });
+        }
+        
+        emit VaultCreated(
+            _owner, 
+            _token, 
+            _targetAmount, 
+            monthlyAmount, 
+            _totalMonths,
+            block.timestamp,
+            vault.endDate
+        );
     }
+    
+    /**
+     * @dev Make a monthly payment
+     * @param _month The month to pay for (1-based)
+     */
+    function makeMonthlyPayment(uint256 _month) external onlyVaultOwner vaultActive nonReentrant {
+        require(_month >= 1 && _month <= vault.totalMonths, "Invalid month");
+        require(monthlyPayments[_month].status == PaymentStatus.PENDING, "Payment already made or missed");
+        require(block.timestamp <= monthlyPayments[_month].dueDate + 30 days, "Payment window closed");
+        
+        MonthlyPayment storage payment = monthlyPayments[_month];
+        
+        // Transfer tokens from user to vault
+        IERC20(vault.token).safeTransferFrom(msg.sender, address(this), payment.amount);
+        
+        // Update payment status
+        payment.status = PaymentStatus.PAID;
+        
+        // Update vault balance with overflow protection
+        require(vault.currentBalance + payment.amount >= vault.currentBalance, "Overflow in currentBalance");
+        require(vault.totalPaid + payment.amount >= vault.totalPaid, "Overflow in totalPaid");
+        
+        vault.currentBalance += payment.amount;
+        vault.totalPaid += payment.amount;
+        
+        // Update current month if this was the current month
+        if (_month == currentMonth) {
+            currentMonth++;
+        }
+        
+        // Check if vault is completed
+        if (currentMonth > vault.totalMonths) {
+            vault.status = VaultStatus.COMPLETED;
+            vault.isActive = false;
+            emit VaultCompleted(msg.sender, vault.currentBalance, vault.totalPaid, vault.totalPenalties);
+        }
+        
+        emit MonthlyPaymentMade(msg.sender, _month, payment.amount, vault.currentBalance);
+    }
+    
+    /**
+     * @dev Process missed payment (called by owner or automated system)
+     * @param _month The month that was missed
+     */
+    function processMissedPayment(uint256 _month) external vaultActive {
+        // Allow vault owner or factory owner to process missed payments
+        require(msg.sender == vault.owner || msg.sender == owner(), "Not authorized");
+        require(_month >= 1 && _month <= vault.totalMonths, "Invalid month");
+        require(monthlyPayments[_month].status == PaymentStatus.PENDING, "Payment not pending");
+        require(block.timestamp > monthlyPayments[_month].dueDate, "Payment not yet due");
+        
+        MonthlyPayment storage payment = monthlyPayments[_month];
+        
+        // Calculate 5% penalty on monthly amount with minimum penalty
+        uint256 penaltyAmount = (payment.amount * MONTHLY_DEFAULT_PENALTY) / 100;
+        if (penaltyAmount == 0 && payment.amount > 0) {
+            penaltyAmount = 1; // Minimum penalty of 1 wei
+        }
+        
+        // Update payment status
+        payment.status = PaymentStatus.MISSED;
+        payment.penaltyAmount = penaltyAmount;
+        payment.penaltyPaid = true;
+        
+        // Deduct penalty from current balance (if any)
+        if (vault.currentBalance >= penaltyAmount) {
+            vault.currentBalance -= penaltyAmount;
+        } else {
+            vault.currentBalance = 0;
+        }
+        
+        // Add overflow protection for total penalties
+        require(vault.totalPenalties + penaltyAmount >= vault.totalPenalties, "Overflow in totalPenalties");
+        vault.totalPenalties += penaltyAmount;
+        
+        // Update current month
+        if (_month == currentMonth) {
+            currentMonth++;
+        }
+        
+        emit MonthlyPaymentMissed(msg.sender, _month, penaltyAmount, vault.currentBalance);
+    }
+    
+    /**
+     * @dev Process all missed payments automatically
+     * @param _upToMonth Process missed payments up to this month (inclusive)
+     */
+    function processAllMissedPayments(uint256 _upToMonth) external vaultActive {
+        // Allow vault owner or factory owner to process missed payments
+        require(msg.sender == vault.owner || msg.sender == owner(), "Not authorized");
+        require(_upToMonth >= 1 && _upToMonth <= vault.totalMonths, "Invalid month");
+        
+        uint256 processedCount = 0;
+        
+        for (uint256 month = 1; month <= _upToMonth; month++) {
+            MonthlyPayment storage payment = monthlyPayments[month];
+            
+            // Check if payment is pending and overdue
+            if (payment.status == PaymentStatus.PENDING && 
+                block.timestamp > payment.dueDate) {
+                
+                // Calculate 5% penalty on monthly amount with minimum penalty
+                uint256 penaltyAmount = (payment.amount * MONTHLY_DEFAULT_PENALTY) / 100;
+                if (penaltyAmount == 0 && payment.amount > 0) {
+                    penaltyAmount = 1; // Minimum penalty of 1 wei
+                }
+                
+                // Update payment status
+                payment.status = PaymentStatus.MISSED;
+                payment.penaltyAmount = penaltyAmount;
+                payment.penaltyPaid = true;
+                
+                // Deduct penalty from current balance (if any)
+                if (vault.currentBalance >= penaltyAmount) {
+                    vault.currentBalance -= penaltyAmount;
+                } else {
+                    vault.currentBalance = 0;
+                }
+                
+                // Add overflow protection for total penalties
+                require(vault.totalPenalties + penaltyAmount >= vault.totalPenalties, "Overflow in totalPenalties");
+                vault.totalPenalties += penaltyAmount;
+                
+                processedCount++;
+                
+                emit MonthlyPaymentMissed(msg.sender, month, penaltyAmount, vault.currentBalance);
+            }
+        }
+        
+        // Update current month to the next unprocessed month
+        while (currentMonth <= vault.totalMonths && 
+               monthlyPayments[currentMonth].status != PaymentStatus.PENDING) {
+            currentMonth++;
+        }
+    }
+    
+    /**
+     * @dev Withdraw early with 10% penalty
+     */
+    function withdrawEarly() external onlyVaultOwner onlyActiveVault nonReentrant {
+        require(vault.currentBalance > 0, "No funds to withdraw");
+        
+        // Calculate 10% penalty on total saved amount with minimum penalty
+        uint256 penaltyAmount = (vault.currentBalance * EARLY_WITHDRAWAL_PENALTY) / 100;
+        if (penaltyAmount == 0 && vault.currentBalance > 0) {
+            penaltyAmount = 1; // Minimum penalty of 1 wei
+        }
+        
+        // Ensure amountToReturn doesn't underflow
+        require(vault.currentBalance >= penaltyAmount, "Insufficient balance for penalty");
+        uint256 amountToReturn = vault.currentBalance - penaltyAmount;
+        
+        // Update vault status
+        vault.status = VaultStatus.WITHDRAWN_EARLY;
+        vault.isActive = false;
+        vault.withdrawalTime = block.timestamp;
+        vault.earlyWithdrawalPenalty = penaltyAmount;
+        vault.returnedAmount = amountToReturn;
+        
+        // Clear the balance before transfer to prevent reentrancy
+        vault.currentBalance = 0;
+        
+        // Transfer remaining amount to user
+        if (amountToReturn > 0) {
+            IERC20(vault.token).safeTransfer(vault.owner, amountToReturn);
+        }
+        
+        emit EarlyWithdrawal(msg.sender, vault.currentBalance + amountToReturn, penaltyAmount, amountToReturn);
+    }
+    
+    /**
+     * @dev Withdraw completed vault (no penalty)
+     */
+    function withdrawCompleted() external onlyVaultOwner nonReentrant {
+        require(vault.status == VaultStatus.COMPLETED, "Vault not completed");
+        require(vault.currentBalance > 0, "No funds to withdraw");
+        
+        uint256 amountToWithdraw = vault.currentBalance;
+        
+        // Clear the balance before transfer to prevent reentrancy
+        vault.currentBalance = 0;
+        vault.withdrawalTime = block.timestamp;
+        vault.returnedAmount = amountToWithdraw;
+        
+        IERC20(vault.token).safeTransfer(vault.owner, amountToWithdraw);
+        
+        emit VaultCompleted(msg.sender, amountToWithdraw, vault.totalPaid, vault.totalPenalties);
+    }
+    
+    /**
+     * @dev Emergency withdrawal (admin only)
+     */
+    function emergencyWithdraw() external onlyOwner nonReentrant {
+        require(vault.currentBalance > 0, "No funds to withdraw");
+        
+        uint256 amountToWithdraw = vault.currentBalance;
+        
+        // Clear the balance before transfer to prevent reentrancy
+        vault.currentBalance = 0;
+        vault.status = VaultStatus.TERMINATED;
+        vault.isActive = false;
+        vault.withdrawalTime = block.timestamp;
+        vault.returnedAmount = amountToWithdraw;
+        
+        IERC20(vault.token).safeTransfer(vault.owner, amountToWithdraw);
+        
+        emit VaultTerminated(vault.owner, block.timestamp);
+    }
+    
+    // View functions
     
     /**
      * @dev Get vault information
      */
-    function getVaultInfo() external view returns (Vault memory) {
-        return vault;
+    function getVaultInfo() external view returns (
+        address owner,
+        address token,
+        uint256 targetAmount,
+        uint256 monthlyAmount,
+        uint256 totalMonths,
+        uint256 currentBalance,
+        uint256 totalPaid,
+        uint256 totalPenalties,
+        uint256 startDate,
+        uint256 endDate,
+        VaultStatus status,
+        bool isActive,
+        uint256 currentMonth
+    ) {
+        return (
+            vault.owner,
+            vault.token,
+            vault.targetAmount,
+            vault.monthlyAmount,
+            vault.totalMonths,
+            vault.currentBalance,
+            vault.totalPaid,
+            vault.totalPenalties,
+            vault.startDate,
+            vault.endDate,
+            vault.status,
+            vault.isActive,
+            currentMonth
+        );
     }
     
     /**
-     * @dev Check if vault is unlocked (time has passed)
+     * @dev Get monthly payment details
      */
-    function isUnlocked() public view returns (bool) {
-        return block.timestamp >= vault.unlockTime;
+    function getMonthlyPayment(uint256 _month) external view returns (
+        uint256 dueDate,
+        uint256 amount,
+        PaymentStatus status,
+        uint256 penaltyAmount,
+        bool penaltyPaid
+    ) {
+        require(_month >= 1 && _month <= vault.totalMonths, "Invalid month");
+        MonthlyPayment memory payment = monthlyPayments[_month];
+        return (
+            payment.dueDate,
+            payment.amount,
+            payment.status,
+            payment.penaltyAmount,
+            payment.penaltyPaid
+        );
     }
     
     /**
-     * @dev Get remaining lock time
+     * @dev Get vault progress percentage
      */
-    function getRemainingTime() external view returns (uint256) {
-        if (block.timestamp >= vault.unlockTime) {
-            return 0;
-        }
-        return vault.unlockTime - block.timestamp;
+    function getProgressPercentage() external view returns (uint256) {
+        if (vault.totalMonths == 0) return 0;
+        return (currentMonth - 1) * 100 / vault.totalMonths;
     }
     
     /**
-     * @dev Get vault balance
+     * @dev Check if vault is completed
      */
-    function getVaultBalance() external view returns (uint256) {
-        return IERC20(vault.token).balanceOf(address(this));
+    function isCompleted() external view returns (bool) {
+        return vault.status == VaultStatus.COMPLETED;
     }
     
     /**
-     * @dev Withdraw funds after lock period (no penalty)
-     */
-    function withdrawCompleted() external onlyVaultOwner vaultActive onlyActiveVault nonReentrant {
-        require(isUnlocked(), "Vault not yet unlocked");
-        
-        uint256 amount = vault.amount;
-        
-        // Update vault state
-        vault.status = VaultStatus.COMPLETED;
-        vault.isActive = false;
-        vault.withdrawalTime = block.timestamp;
-        vault.returnedAmount = amount;
-        
-        // Transfer tokens to owner
-        IERC20(vault.token).safeTransfer(vault.owner, amount);
-        
-        emit CompletedWithdrawal(vault.owner, amount, block.timestamp);
-    }
-    
-    /**
-     * @dev Early withdrawal with penalty
-     * @param penaltyAmount The penalty amount to apply
-     */
-    function withdrawEarly(uint256 penaltyAmount) external onlyVaultOwner vaultActive onlyActiveVault nonReentrant {
-        require(!isUnlocked(), "Vault already unlocked - use withdrawCompleted");
-        require(penaltyAmount > 0, "Penalty must be greater than 0");
-        require(penaltyAmount < vault.amount, "Penalty cannot exceed amount");
-        
-        uint256 remainingAmount = vault.amount - penaltyAmount;
-        
-        // Update vault state before external calls (CEI pattern)
-        vault.status = VaultStatus.WITHDRAWN_EARLY;
-        vault.isActive = false;
-        vault.withdrawalTime = block.timestamp;
-        vault.penaltyAmount = penaltyAmount;
-        vault.returnedAmount = remainingAmount;
-        
-        // Transfer penalty to factory (which will send to treasury)
-        IERC20(vault.token).safeTransfer(msg.sender, penaltyAmount);
-        
-        // Transfer remaining amount to owner
-        IERC20(vault.token).safeTransfer(vault.owner, remainingAmount);
-        
-        emit EarlyWithdrawal(vault.owner, penaltyAmount, remainingAmount, block.timestamp);
-    }
-    
-    /**
-     * @dev Emergency withdrawal (owner only) - can only withdraw if vault is compromised
-     */
-    function emergencyWithdraw() external onlyOwner vaultActive nonReentrant {
-        uint256 balance = IERC20(vault.token).balanceOf(address(this));
-        require(balance > 0, "No balance to withdraw");
-        
-        // Only allow emergency withdrawal if vault is in an invalid state
-        require(vault.status == VaultStatus.ACTIVE && !vault.isActive, "Vault not in emergency state");
-        
-        // Update vault state
-        vault.status = VaultStatus.TERMINATED;
-        vault.isActive = false;
-        vault.withdrawalTime = block.timestamp;
-        vault.returnedAmount = balance;
-        
-        // Transfer all tokens to owner
-        IERC20(vault.token).safeTransfer(owner(), balance);
-        
-        emit EmergencyWithdrawal(owner(), balance, block.timestamp);
-        emit VaultTerminated(vault.owner, block.timestamp);
-    }
-    
-    /**
-     * @dev Pause vault (owner only)
-     */
-    function pauseVault() external onlyOwner {
-        vault.isActive = false;
-        emit VaultPaused(vault.owner, block.timestamp);
-    }
-    
-    /**
-     * @dev Resume vault (owner only)
-     */
-    function resumeVault() external onlyOwner {
-        vault.isActive = true;
-        emit VaultResumed(vault.owner, block.timestamp);
-    }
-    
-    /**
-     * @dev Get vault status as string
-     */
-    function getVaultStatusString() external view returns (string memory) {
-        if (vault.status == VaultStatus.ACTIVE) {
-            return "ACTIVE";
-        } else if (vault.status == VaultStatus.WITHDRAWN_EARLY) {
-            return "WITHDRAWN_EARLY";
-        } else if (vault.status == VaultStatus.COMPLETED) {
-            return "COMPLETED";
-        } else if (vault.status == VaultStatus.TERMINATED) {
-            return "TERMINATED";
-        }
-        return "UNKNOWN";
-    }
-    
-    /**
-     * @dev Check if vault can be withdrawn normally (after lock period)
-     */
-    function canWithdraw() external view returns (bool) {
-        return vault.isActive && 
-               vault.status == VaultStatus.ACTIVE && 
-               isUnlocked();
-    }
-    
-    /**
-     * @dev Check if vault can be withdrawn early (before lock period)
+     * @dev Check if user can withdraw early
      */
     function canWithdrawEarly() external view returns (bool) {
-        return vault.isActive && 
-               vault.status == VaultStatus.ACTIVE && 
-               !isUnlocked();
+        return vault.status == VaultStatus.ACTIVE && vault.currentBalance > 0;
     }
     
     /**
-     * @dev Check if vault is still active (not withdrawn/terminated)
+     * @dev Check if user can withdraw completed vault
      */
-    function isVaultActive() external view returns (bool) {
-        return vault.status == VaultStatus.ACTIVE && vault.isActive;
+    function canWithdrawCompleted() external view returns (bool) {
+        return vault.status == VaultStatus.COMPLETED && vault.currentBalance > 0;
     }
     
     /**
-     * @dev Get vault status for UI display
+     * @dev Get next payment due date
      */
-    function getVaultStatus() external view returns (VaultStatus) {
-        return vault.status;
+    function getNextPaymentDueDate() external view returns (uint256) {
+        if (currentMonth > vault.totalMonths) return 0;
+        return monthlyPayments[currentMonth].dueDate;
     }
     
     /**
-     * @dev Get withdrawal details (if vault was withdrawn)
+     * @dev Get missed payments count
      */
-    function getWithdrawalDetails() external view returns (
-        uint256 withdrawalTime,
-        uint256 penaltyAmount,
-        uint256 returnedAmount
+    function getMissedPaymentsCount() external view returns (uint256) {
+        uint256 missedCount = 0;
+        for (uint256 i = 1; i <= vault.totalMonths; i++) {
+            if (monthlyPayments[i].status == PaymentStatus.MISSED) {
+                missedCount++;
+            }
+        }
+        return missedCount;
+    }
+    
+    /**
+     * @dev Get total amount that should be paid vs actually paid
+     */
+    function getPaymentSummary() external view returns (
+        uint256 totalShouldPay,
+        uint256 totalActuallyPaid,
+        uint256 totalPenaltiesPaid,
+        uint256 missedPaymentsCount,
+        uint256 completedPaymentsCount
     ) {
-        return (vault.withdrawalTime, vault.penaltyAmount, vault.returnedAmount);
-    }
-    
-    /**
-     * @dev Get all available lock durations
-     */
-    function getAvailableLockDurations() external pure returns (uint256[] memory) {
-        uint256[] memory durations = new uint256[](7);
-        durations[0] = LOCK_1_MONTH;
-        durations[1] = LOCK_2_MONTHS;
-        durations[2] = LOCK_3_MONTHS;
-        durations[3] = LOCK_4_MONTHS;
-        durations[4] = LOCK_5_MONTHS;
-        durations[5] = LOCK_6_MONTHS;
-        durations[6] = LOCK_1_YEAR;
-        return durations;
-    }
-    
-    /**
-     * @dev Get lock duration in months
-     */
-    function getLockDurationInMonths(uint256 duration) external pure returns (uint256) {
-        return duration / 30 days;
-    }
-    
-    /**
-     * @dev Check if duration is a predefined option
-     */
-    function isPredefinedDuration(uint256 duration) external pure returns (bool) {
-        return duration == LOCK_1_MONTH ||
-               duration == LOCK_2_MONTHS ||
-               duration == LOCK_3_MONTHS ||
-               duration == LOCK_4_MONTHS ||
-               duration == LOCK_5_MONTHS ||
-               duration == LOCK_6_MONTHS ||
-               duration == LOCK_1_YEAR;
+        totalShouldPay = vault.targetAmount;
+        totalActuallyPaid = vault.totalPaid;
+        totalPenaltiesPaid = vault.totalPenalties;
+        
+        for (uint256 i = 1; i <= vault.totalMonths; i++) {
+            if (monthlyPayments[i].status == PaymentStatus.MISSED) {
+                missedPaymentsCount++;
+            } else if (monthlyPayments[i].status == PaymentStatus.PAID) {
+                completedPaymentsCount++;
+            }
+        }
+        
+        return (totalShouldPay, totalActuallyPaid, totalPenaltiesPaid, missedPaymentsCount, completedPaymentsCount);
     }
 }

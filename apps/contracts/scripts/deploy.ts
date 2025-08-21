@@ -3,6 +3,23 @@ import * as fs from "fs";
 import * as path from "path";
 import "dotenv/config";
 
+/**
+ * SapaSafe Monthly Savings Vault System Deployment Script
+ * 
+ * This script deploys the complete monthly savings vault system with:
+ * - TokenRegistry: Manages supported tokens
+ * - PenaltyManager: Handles penalty calculations and treasury
+ * - VaultFactory: Creates and manages monthly savings vaults
+ * 
+ * Monthly Savings Features:
+ * - Users set target amount and duration (1-12 months)
+ * - Monthly payments are calculated automatically
+ * - 5% penalty for missed monthly payments
+ * - 10% penalty for early withdrawal
+ * - Automated missed payment processing
+ * - Comprehensive security protections
+ */
+
 // Ensure environment variables are loaded
 require('dotenv').config();
 
@@ -90,20 +107,20 @@ async function main() {
     // Test vault creation
     console.log("\n=== Testing Vault Creation ===");
     const testToken = "0x4a5b03B8b16122D330306c65e4CA4BC5Dd6511d0"; // cNGN
-    const testAmount = ethers.parseEther("600"); // 600 tokens
-    const testDuration = 30 * 24 * 60 * 60; // 30 days
+    const testTargetAmount = ethers.parseEther("600"); // 600 tokens target
+    const testTotalMonths = 3; // 3 months duration
     const deadline = Math.floor(Date.now() / 1000) + 1200; // 20 minutes from now
     
     console.log("Testing vault creation...");
     console.log("Test Token:", testToken);
-    console.log("Test Amount:", testAmount.toString());
-    console.log("Test Duration:", testDuration);
+    console.log("Test Target Amount:", testTargetAmount.toString());
+    console.log("Test Total Months:", testTotalMonths);
     console.log("Deadline:", deadline);
     
     const tx = await vaultFactory.createVault(
       testToken,
-      testAmount,
-      testDuration,
+      testTargetAmount,
+      testTotalMonths,
       deadline
     );
     
@@ -115,7 +132,37 @@ async function main() {
     const userVaults = await vaultFactory.getUserVaults(deployer.address);
     console.log("User vaults count:", userVaults.length);
     if (userVaults.length > 0) {
-      console.log("Created vault address:", userVaults[0]);
+      const vaultAddress = userVaults[0];
+      console.log("Created vault address:", vaultAddress);
+      
+      // Test vault info retrieval
+      console.log("\n=== Testing Vault Info ===");
+      const vaultInfo = await vaultFactory.getVaultInfo(vaultAddress);
+      console.log("Vault Info:", {
+        owner: vaultInfo[0],
+        token: vaultInfo[1],
+        targetAmount: vaultInfo[2].toString(),
+        monthlyAmount: vaultInfo[3].toString(),
+        totalMonths: vaultInfo[4].toString(),
+        currentBalance: vaultInfo[5].toString(),
+        totalPaid: vaultInfo[6].toString(),
+        totalPenalties: vaultInfo[7].toString(),
+        startDate: new Date(Number(vaultInfo[8]) * 1000).toISOString(),
+        endDate: new Date(Number(vaultInfo[9]) * 1000).toISOString(),
+        status: vaultInfo[10],
+        isActive: vaultInfo[11],
+        withdrawalTime: vaultInfo[12].toString()
+      });
+      
+      // Test status summary
+      console.log("\n=== Testing Status Summary ===");
+      const statusSummary = await vaultFactory.getUserVaultStatusSummary(deployer.address);
+      console.log("User Status Summary:", {
+        activeVaults: statusSummary[0].toString(),
+        completedVaults: statusSummary[1].toString(),
+        earlyWithdrawnVaults: statusSummary[2].toString(),
+        terminatedVaults: statusSummary[3].toString()
+      });
     }
 
     console.log("\n=== Deployment Complete ===");
@@ -128,6 +175,15 @@ async function main() {
       network: "alfajores",
       deployer: deployer.address,
       timestamp: new Date().toISOString(),
+      system: "Monthly Savings Vault System",
+      features: [
+        "Monthly payment schedule",
+        "5% penalty for missed payments",
+        "10% penalty for early withdrawal",
+        "Automated missed payment processing",
+        "Overflow protection",
+        "Reentrancy protection"
+      ],
       contracts: {
         tokenRegistry: {
           address: tokenRegistryAddress,
