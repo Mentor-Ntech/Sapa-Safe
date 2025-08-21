@@ -3,12 +3,16 @@
   command = "npm run build"
   # Publish directory (Next.js build output from web app)
   publish = "apps/web/.next"
+  # Base directory for the web app
+  base = "apps/web"
 
 [build.environment]
   # Node.js version
   NODE_VERSION = "18"
-  # Skip Next.js plugin to avoid SSR issues
-  NETLIFY_NEXT_PLUGIN_SKIP = "true"
+
+# Use Next.js Runtime for Netlify
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
 
 # Headers for security and performance
 [[headers]]
@@ -36,3 +40,10 @@
   for = "/*.svg"
   [headers.values]
     Cache-Control = "public, max-age=86400"
+
+# Next.js routing - handle client-side routing
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+  force = true
