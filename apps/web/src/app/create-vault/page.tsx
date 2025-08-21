@@ -38,8 +38,8 @@ export default function CreateVaultPage() {
   const [currentStep, setCurrentStep] = useState(1)
   const [formData, setFormData] = useState({
     token: '',
-    amount: '',
-    duration: '',
+    targetAmount: '',
+    totalMonths: '',
     goal: ''
   })
 
@@ -77,15 +77,15 @@ export default function CreateVaultPage() {
   // Use supported tokens directly (they now include fallback currencies)
   const availableCurrencies = Array.isArray(supportedTokens) ? supportedTokens : []
   
-  // Duration options
+  // Duration options (months)
   const durations = [
-    { value: '30', label: '1 Month (30 days)', days: 30 },
-    { value: '60', label: '2 Months (60 days)', days: 60 },
-    { value: '90', label: '3 Months (90 days)', days: 90 },
-    { value: '120', label: '4 Months (120 days)', days: 120 },
-    { value: '150', label: '5 Months (150 days)', days: 150 },
-    { value: '180', label: '6 Months (180 days)', days: 180 },
-    { value: '365', label: '1 Year (365 days)', days: 365 },
+    { value: '1', label: '1 Month', months: 1 },
+    { value: '2', label: '2 Months', months: 2 },
+    { value: '3', label: '3 Months', months: 3 },
+    { value: '4', label: '4 Months', months: 4 },
+    { value: '5', label: '5 Months', months: 5 },
+    { value: '6', label: '6 Months', months: 6 },
+    { value: '12', label: '12 Months', months: 12 },
   ]
 
   // Not connected state
@@ -111,9 +111,9 @@ export default function CreateVaultPage() {
   const validateStep = (step: number) => {
     switch (step) {
       case 1:
-        return formData.token && formData.amount
+        return formData.token && formData.targetAmount
       case 2:
-        return formData.duration
+        return formData.totalMonths
       case 3:
         return formData.goal
       default:
@@ -142,9 +142,9 @@ export default function CreateVaultPage() {
     try {
       setIsCreating(true)
       
-      // Convert amount to bigint (assuming 18 decimals)
-      const amountInWei = BigInt(parseFloat(formData.amount) * 10**18)
-      const durationInSeconds = BigInt(parseInt(formData.duration) * 24 * 60 * 60) // days to seconds
+      // Convert target amount to bigint (assuming 18 decimals)
+      const targetAmountInWei = BigInt(parseFloat(formData.targetAmount) * 10**18)
+      const totalMonths = parseInt(formData.totalMonths)
       
 
       
@@ -164,34 +164,15 @@ export default function CreateVaultPage() {
       
 
       
-      // Check user's token balance
-
+      // For monthly savings, we don't need to check balance upfront since payments are monthly
+      // The user will need to have enough tokens for each monthly payment
       
-      if (!userTokenBalance || userTokenBalance < amountInWei) {
-        throw new Error(`Insufficient token balance. You have ${userTokenBalance?.toString() || '0'} but need ${amountInWei.toString()}`)
-      }
-      
-      // First, approve the tokens
-      console.log('Approving tokens for vault creation...')
-      toast.info('Approving tokens for vault creation...')
-      
-      try {
-        console.log('Starting token approval process...')
-        await approveTokensForFactory(tokenAddress, amountInWei)
-        console.log('Approval completed successfully')
-        toast.success('Token approval sent! Check your wallet for approval popup.')
-      } catch (error) {
-        console.error('Error approving tokens:', error)
-        toast.error('Failed to approve tokens')
-        throw error
-      }
-
       // Create the vault
-      console.log('Creating vault...')
+      console.log('Creating monthly savings vault...')
       const result = await createNewVault(
         formData.token,
-        amountInWei,
-        durationInSeconds,
+        targetAmountInWei,
+        totalMonths,
         formData.goal
       )
 
@@ -206,8 +187,8 @@ export default function CreateVaultPage() {
         description: `Created ${formData.token} vault`,
         metadata: { 
           token: formData.token, 
-          amount: formData.amount, 
-          duration: formData.duration,
+          targetAmount: formData.targetAmount, 
+          totalMonths: formData.totalMonths,
           goal: formData.goal 
         }
       })
@@ -260,7 +241,7 @@ export default function CreateVaultPage() {
   }
 
   const getSelectedDuration = () => {
-    return durations.find(d => d.value === formData.duration)
+    return durations.find(d => d.value === formData.totalMonths)
   }
 
   return (
@@ -312,18 +293,18 @@ export default function CreateVaultPage() {
         <Card className="sapasafe-card">
           <CardHeader>
             <CardTitle className="sapasafe-heading-3">
-              {currentStep === 1 && 'Choose Currency & Amount'}
-              {currentStep === 2 && 'Select Lock Duration'}
+              {currentStep === 1 && 'Choose Currency & Target Amount'}
+              {currentStep === 2 && 'Select Savings Duration'}
               {currentStep === 3 && 'Set Your Goal'}
             </CardTitle>
             <CardDescription>
-              {currentStep === 1 && 'Select the currency and amount you want to save. You will need to approve token spending if this is your first time.'}
-              {currentStep === 2 && 'Choose how long you want to lock your funds'}
+              {currentStep === 1 && 'Select the currency and total amount you want to save. You will pay monthly installments.'}
+              {currentStep === 2 && 'Choose how many months you want to save over'}
               {currentStep === 3 && 'Describe your savings goal for motivation'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Step 1: Currency & Amount */}
+            {/* Step 1: Currency & Target Amount */}
             {currentStep === 1 && (
               <div className="space-y-4">
                 <div>
@@ -356,15 +337,15 @@ export default function CreateVaultPage() {
                 </div>
 
                 <div>
-                  <Label htmlFor="amount" className="sapasafe-text-sm font-medium">
-                    Amount
+                  <Label htmlFor="targetAmount" className="sapasafe-text-sm font-medium">
+                    Target Amount
                   </Label>
                   <Input
-                    id="amount"
+                    id="targetAmount"
                     type="number"
-                    placeholder="Enter amount"
-                    value={formData.amount}
-                    onChange={(e) => handleInputChange('amount', e.target.value)}
+                    placeholder="Enter total amount to save"
+                    value={formData.targetAmount}
+                    onChange={(e) => handleInputChange('targetAmount', e.target.value)}
                     className="sapasafe-input"
                   />
                   {getSelectedCurrency() && (
@@ -376,16 +357,16 @@ export default function CreateVaultPage() {
               </div>
             )}
 
-            {/* Step 2: Duration */}
+            {/* Step 2: Savings Duration */}
             {currentStep === 2 && (
               <div className="space-y-4">
                 <div>
-                  <Label htmlFor="duration" className="sapasafe-text-sm font-medium">
-                    Lock Duration
+                  <Label htmlFor="totalMonths" className="sapasafe-text-sm font-medium">
+                    Savings Duration
                   </Label>
                   <Select 
-                    value={formData.duration} 
-                    onValueChange={(value: string) => handleInputChange('duration', value)}
+                    value={formData.totalMonths} 
+                    onValueChange={(value: string) => handleInputChange('totalMonths', value)}
                   >
                     <SelectTrigger className="sapasafe-input">
                       <SelectValue placeholder="Select duration" />
@@ -407,11 +388,11 @@ export default function CreateVaultPage() {
                   <div className="p-4 bg-muted/30 rounded-lg">
                     <div className="flex items-center gap-2 mb-2">
                       <Clock className="h-4 w-4 text-primary" />
-                      <span className="sapasafe-text-sm font-medium">Lock Period</span>
+                      <span className="sapasafe-text-sm font-medium">Monthly Savings Plan</span>
                     </div>
                     <p className="sapasafe-text-sm text-muted-foreground">
-                      Your funds will be locked for {getSelectedDuration()?.days} days. 
-                      Early withdrawal will incur a penalty.
+                      You will save monthly over {getSelectedDuration()?.months} months. 
+                      Early withdrawal will incur a 10% penalty.
                     </p>
                   </div>
                 )}
@@ -441,7 +422,7 @@ export default function CreateVaultPage() {
                   </div>
                   <div className="space-y-1 text-sm">
                     <p><span className="text-muted-foreground">Currency:</span> {formData.token}</p>
-                    <p><span className="text-muted-foreground">Amount:</span> {formData.amount}</p>
+                    <p><span className="text-muted-foreground">Target Amount:</span> {formData.targetAmount}</p>
                     <p><span className="text-muted-foreground">Duration:</span> {getSelectedDuration()?.label}</p>
                     <p><span className="text-muted-foreground">Goal:</span> {formData.goal}</p>
                   </div>

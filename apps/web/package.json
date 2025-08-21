@@ -7,7 +7,9 @@
     "dev": "next dev",
     "lint": "next lint",
     "start": "next start",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "export": "next build && next export",
+    "deploy:netlify": "npm run build"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.0.5",

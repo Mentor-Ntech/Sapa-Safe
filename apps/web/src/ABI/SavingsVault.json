@@ -13,12 +13,12 @@
       },
       {
         "internalType": "uint256",
-        "name": "_amount",
+        "name": "_targetAmount",
         "type": "uint256"
       },
       {
         "internalType": "uint256",
-        "name": "_duration",
+        "name": "_totalMonths",
         "type": "uint256"
       }
     ],
@@ -75,27 +75,8 @@
       {
         "indexed": false,
         "internalType": "uint256",
-        "name": "amount",
+        "name": "totalSaved",
         "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "timestamp",
-        "type": "uint256"
-      }
-    ],
-    "name": "CompletedWithdrawal",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "owner",
-        "type": "address"
       },
       {
         "indexed": false,
@@ -107,12 +88,6 @@
         "indexed": false,
         "internalType": "uint256",
         "name": "returned",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "timestamp",
         "type": "uint256"
       }
     ],
@@ -131,17 +106,23 @@
       {
         "indexed": false,
         "internalType": "uint256",
+        "name": "month",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
         "name": "amount",
         "type": "uint256"
       },
       {
         "indexed": false,
         "internalType": "uint256",
-        "name": "timestamp",
+        "name": "currentBalance",
         "type": "uint256"
       }
     ],
-    "name": "EmergencyWithdrawal",
+    "name": "MonthlyPaymentMade",
     "type": "event"
   },
   {
@@ -156,23 +137,23 @@
       {
         "indexed": false,
         "internalType": "uint256",
-        "name": "amount",
+        "name": "month",
         "type": "uint256"
       },
       {
         "indexed": false,
         "internalType": "uint256",
-        "name": "unlockTime",
+        "name": "penaltyAmount",
         "type": "uint256"
       },
       {
         "indexed": false,
         "internalType": "uint256",
-        "name": "lockStartTime",
+        "name": "currentBalance",
         "type": "uint256"
       }
     ],
-    "name": "FundsLocked",
+    "name": "MonthlyPaymentMissed",
     "type": "event"
   },
   {
@@ -204,6 +185,37 @@
         "type": "address"
       },
       {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "totalSaved",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "totalPaid",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "totalPenalties",
+        "type": "uint256"
+      }
+    ],
+    "name": "VaultCompleted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      },
+      {
         "indexed": true,
         "internalType": "address",
         "name": "token",
@@ -212,61 +224,35 @@
       {
         "indexed": false,
         "internalType": "uint256",
-        "name": "amount",
+        "name": "targetAmount",
         "type": "uint256"
       },
       {
         "indexed": false,
         "internalType": "uint256",
-        "name": "duration",
+        "name": "monthlyAmount",
         "type": "uint256"
       },
       {
         "indexed": false,
         "internalType": "uint256",
-        "name": "unlockTime",
+        "name": "totalMonths",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "startDate",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "endDate",
         "type": "uint256"
       }
     ],
     "name": "VaultCreated",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "owner",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "timestamp",
-        "type": "uint256"
-      }
-    ],
-    "name": "VaultPaused",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "owner",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "timestamp",
-        "type": "uint256"
-      }
-    ],
-    "name": "VaultResumed",
     "type": "event"
   },
   {
@@ -290,7 +276,7 @@
   },
   {
     "inputs": [],
-    "name": "LOCK_1_MONTH",
+    "name": "EARLY_WITHDRAWAL_PENALTY",
     "outputs": [
       {
         "internalType": "uint256",
@@ -303,7 +289,7 @@
   },
   {
     "inputs": [],
-    "name": "LOCK_1_YEAR",
+    "name": "MONTHLY_DEFAULT_PENALTY",
     "outputs": [
       {
         "internalType": "uint256",
@@ -316,98 +302,7 @@
   },
   {
     "inputs": [],
-    "name": "LOCK_2_MONTHS",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "LOCK_3_MONTHS",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "LOCK_4_MONTHS",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "LOCK_5_MONTHS",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "LOCK_6_MONTHS",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "MAX_LOCK_DURATION",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "MIN_LOCK_DURATION",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "canWithdraw",
+    "name": "canWithdrawCompleted",
     "outputs": [
       {
         "internalType": "bool",
@@ -433,46 +328,7 @@
   },
   {
     "inputs": [],
-    "name": "emergencyWithdraw",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "getAvailableLockDurations",
-    "outputs": [
-      {
-        "internalType": "uint256[]",
-        "name": "",
-        "type": "uint256[]"
-      }
-    ],
-    "stateMutability": "pure",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "duration",
-        "type": "uint256"
-      }
-    ],
-    "name": "getLockDurationInMonths",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "pure",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "getRemainingTime",
+    "name": "currentMonth",
     "outputs": [
       {
         "internalType": "uint256",
@@ -485,7 +341,112 @@
   },
   {
     "inputs": [],
-    "name": "getVaultBalance",
+    "name": "emergencyWithdraw",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getMissedPaymentsCount",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_month",
+        "type": "uint256"
+      }
+    ],
+    "name": "getMonthlyPayment",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "dueDate",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      },
+      {
+        "internalType": "enum SavingsVault.PaymentStatus",
+        "name": "status",
+        "type": "uint8"
+      },
+      {
+        "internalType": "uint256",
+        "name": "penaltyAmount",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bool",
+        "name": "penaltyPaid",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getNextPaymentDueDate",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getPaymentSummary",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "totalShouldPay",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "totalActuallyPaid",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "totalPenaltiesPaid",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "missedPaymentsCount",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "completedPaymentsCount",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getProgressPercentage",
     "outputs": [
       {
         "internalType": "uint256",
@@ -501,79 +462,69 @@
     "name": "getVaultInfo",
     "outputs": [
       {
-        "components": [
-          {
-            "internalType": "address",
-            "name": "owner",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "token",
-            "type": "address"
-          },
-          {
-            "internalType": "uint256",
-            "name": "amount",
-            "type": "uint256"
-          },
-          {
-            "internalType": "uint256",
-            "name": "lockStartTime",
-            "type": "uint256"
-          },
-          {
-            "internalType": "uint256",
-            "name": "lockDuration",
-            "type": "uint256"
-          },
-          {
-            "internalType": "uint256",
-            "name": "unlockTime",
-            "type": "uint256"
-          },
-          {
-            "internalType": "enum SavingsVault.VaultStatus",
-            "name": "status",
-            "type": "uint8"
-          },
-          {
-            "internalType": "bool",
-            "name": "isActive",
-            "type": "bool"
-          },
-          {
-            "internalType": "uint256",
-            "name": "withdrawalTime",
-            "type": "uint256"
-          },
-          {
-            "internalType": "uint256",
-            "name": "penaltyAmount",
-            "type": "uint256"
-          },
-          {
-            "internalType": "uint256",
-            "name": "returnedAmount",
-            "type": "uint256"
-          }
-        ],
-        "internalType": "struct SavingsVault.Vault",
-        "name": "",
-        "type": "tuple"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "getVaultStatus",
-    "outputs": [
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "targetAmount",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "monthlyAmount",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "totalMonths",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "currentBalance",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "totalPaid",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "totalPenalties",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "startDate",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "endDate",
+        "type": "uint256"
+      },
       {
         "internalType": "enum SavingsVault.VaultStatus",
-        "name": "",
+        "name": "status",
         "type": "uint8"
+      },
+      {
+        "internalType": "bool",
+        "name": "isActive",
+        "type": "bool"
+      },
+      {
+        "internalType": "uint256",
+        "name": "currentMonth",
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -581,35 +532,12 @@
   },
   {
     "inputs": [],
-    "name": "getVaultStatusString",
+    "name": "isCompleted",
     "outputs": [
       {
-        "internalType": "string",
+        "internalType": "bool",
         "name": "",
-        "type": "string"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "getWithdrawalDetails",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "withdrawalTime",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "penaltyAmount",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "returnedAmount",
-        "type": "uint256"
+        "type": "bool"
       }
     ],
     "stateMutability": "view",
@@ -619,41 +547,48 @@
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "duration",
+        "name": "_month",
         "type": "uint256"
       }
     ],
-    "name": "isPredefinedDuration",
-    "outputs": [
-      {
-        "internalType": "bool",
-        "name": "",
-        "type": "bool"
-      }
-    ],
-    "stateMutability": "pure",
+    "name": "makeMonthlyPayment",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "isUnlocked",
-    "outputs": [
+    "inputs": [
       {
-        "internalType": "bool",
+        "internalType": "uint256",
         "name": "",
-        "type": "bool"
+        "type": "uint256"
       }
     ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "isVaultActive",
+    "name": "monthlyPayments",
     "outputs": [
       {
+        "internalType": "uint256",
+        "name": "dueDate",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      },
+      {
+        "internalType": "enum SavingsVault.PaymentStatus",
+        "name": "status",
+        "type": "uint8"
+      },
+      {
+        "internalType": "uint256",
+        "name": "penaltyAmount",
+        "type": "uint256"
+      },
+      {
         "internalType": "bool",
-        "name": "",
+        "name": "penaltyPaid",
         "type": "bool"
       }
     ],
@@ -674,8 +609,27 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "pauseVault",
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_upToMonth",
+        "type": "uint256"
+      }
+    ],
+    "name": "processAllMissedPayments",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_month",
+        "type": "uint256"
+      }
+    ],
+    "name": "processMissedPayment",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -683,13 +637,6 @@
   {
     "inputs": [],
     "name": "renounceOwnership",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "resumeVault",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -723,22 +670,42 @@
       },
       {
         "internalType": "uint256",
-        "name": "amount",
+        "name": "targetAmount",
         "type": "uint256"
       },
       {
         "internalType": "uint256",
-        "name": "lockStartTime",
+        "name": "monthlyAmount",
         "type": "uint256"
       },
       {
         "internalType": "uint256",
-        "name": "lockDuration",
+        "name": "totalMonths",
         "type": "uint256"
       },
       {
         "internalType": "uint256",
-        "name": "unlockTime",
+        "name": "currentBalance",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "totalPaid",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "totalPenalties",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "startDate",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "endDate",
         "type": "uint256"
       },
       {
@@ -758,7 +725,7 @@
       },
       {
         "internalType": "uint256",
-        "name": "penaltyAmount",
+        "name": "earlyWithdrawalPenalty",
         "type": "uint256"
       },
       {
@@ -778,13 +745,7 @@
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "penaltyAmount",
-        "type": "uint256"
-      }
-    ],
+    "inputs": [],
     "name": "withdrawEarly",
     "outputs": [],
     "stateMutability": "nonpayable",

@@ -12,6 +12,13 @@ const inter = Inter({ subsets: ['latin'] });
 export const metadata: Metadata = {
   title: 'SapaSafe - Secure African Savings',
   description: 'Time-locked savings in African currencies. Build wealth with discipline.',
+  icons: {
+    icon: [
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/favicon.ico', type: 'image/x-icon' }
+    ],
+    apple: '/favicon.svg',
+  },
 };
 
 export default function RootLayout({

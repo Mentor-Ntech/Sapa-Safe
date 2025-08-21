@@ -27,12 +27,17 @@ export const useVaults = () => {
     // High-level vault operations
     const createNewVault = useCallback(async (
         tokenSymbol: string,
-        amount: bigint,
-        duration: bigint,
+        targetAmount: bigint,
+        totalMonths: number,
         goal: string
     ) => {
         try {
-            console.log('Creating new vault:', { tokenSymbol, amount: amount.toString(), duration: duration.toString(), goal })
+            console.log('Creating new monthly savings vault:', { 
+                tokenSymbol, 
+                targetAmount: targetAmount.toString(), 
+                totalMonths,
+                goal 
+            })
 
             // Get token addresses from the TokenRegistry contract
             const tokenAddressMap: Record<string, `0x${string}`> = {
@@ -53,34 +58,30 @@ export const useVaults = () => {
             // Create vault using factory (goal is stored locally, not in contract)
             const result = await vaultFactory.createVaultWithParams(
                 tokenAddress,
-                amount,
-                duration,
+                targetAmount,
+                totalMonths,
                 goal // This will be ignored by the contract but kept for local tracking
             )
 
-            console.log('Vault creation result:', result)
+            console.log('Monthly savings vault creation result:', result)
             return result
         } catch (error) {
-            console.error('Error creating vault:', error)
+            console.error('Error creating monthly savings vault:', error)
             throw error
         }
     }, [vaultFactory])
 
     const withdrawFromVault = useCallback(async (
         vaultAddress: `0x${string}`,
-        isEarly: boolean = false,
-        penaltyAmount?: bigint
+        isEarly: boolean = false
     ) => {
         try {
-            console.log('Withdrawing from vault:', { vaultAddress, isEarly, penaltyAmount: penaltyAmount?.toString() })
+            console.log('Withdrawing from vault:', { vaultAddress, isEarly })
             
             setSelectedVault(vaultAddress)
 
             if (isEarly) {
-                if (!penaltyAmount) {
-                    throw new Error('Penalty amount required for early withdrawal')
-                }
-                const result = await vault.withdrawEarlyFunds(penaltyAmount)
+                const result = await vault.withdrawEarlyFunds()
                 return result
             } else {
                 const result = await vault.withdrawCompletedFunds()
@@ -169,6 +170,55 @@ export const useVaults = () => {
             return { activeCount: 0, completedCount: 0, earlyWithdrawnCount: 0, terminatedCount: 0 }
         }
     }, [vaultFactory, address])
+
+    // Monthly payment operations
+    const makeMonthlyPayment = useCallback(async (
+        vaultAddress: `0x${string}`,
+        month: number
+    ) => {
+        try {
+            console.log('Making monthly payment:', { vaultAddress, month })
+            setSelectedVault(vaultAddress)
+            
+            const result = await vault.makeMonthlyPayment(month)
+            return result
+        } catch (error) {
+            console.error('Error making monthly payment:', error)
+            throw error
+        }
+    }, [vault])
+
+    const processMissedPayment = useCallback(async (
+        vaultAddress: `0x${string}`,
+        month: number
+    ) => {
+        try {
+            console.log('Processing missed payment:', { vaultAddress, month })
+            setSelectedVault(vaultAddress)
+            
+            const result = await vault.processMissedPaymentForMonth(month)
+            return result
+        } catch (error) {
+            console.error('Error processing missed payment:', error)
+            throw error
+        }
+    }, [vault])
+
+    const processAllMissedPayments = useCallback(async (
+        vaultAddress: `0x${string}`,
+        upToMonth: number
+    ) => {
+        try {
+            console.log('Processing all missed payments:', { vaultAddress, upToMonth })
+            setSelectedVault(vaultAddress)
+            
+            const result = await vault.processAllMissedPaymentsUpTo(upToMonth)
+            return result
+        } catch (error) {
+            console.error('Error processing all missed payments:', error)
+            throw error
+        }
+    }, [vault])
 
     const refreshVaultData = useCallback(async () => {
         try {
@@ -270,6 +320,11 @@ export const useVaults = () => {
         getCompletedVaults,
         getEarlyWithdrawnVaults,
         getVaultStatusSummary,
+        
+        // Monthly payment operations
+        makeMonthlyPayment,
+        processMissedPayment,
+        processAllMissedPayments,
         
         // Contract hooks
         vaultFactory,

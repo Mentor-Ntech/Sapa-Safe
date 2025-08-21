@@ -1,15 +1,15 @@
 // Contract addresses from deployed contracts on Celo Alfajores
 export const CONTRACTS = {
-  // Alfajores Testnet
+  // Alfajores Testnet - Monthly Savings System
   alfajores: {
     tokenRegistry: {
-      address: "0xdff3C5d1Ae46A795fE4B891c01bB43B69055bFf7"
+      address: "0xa54286F049A9d8A8867707E3b2E958AD49Bdd30B"
     },
     penaltyManager: {
-      address: "0x5c43dAEeB39D66F5546beE7FA06a073E3b803591"
+      address: "0x92B16Fd77CDE4e27DEff8F9b2975a6a57C0b789b"
     },
     vaultFactory: {
-      address: "0x3888aC9D1004B26c1D8D9b4623F4c6B0B3469205"
+      address: "0x7b6daCea811fd2704911E05c794CE08bF24430f4"
     }
   }
   // Celo Mainnet - commented out until contracts are deployed
