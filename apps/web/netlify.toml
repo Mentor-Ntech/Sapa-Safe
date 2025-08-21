@@ -4,13 +4,11 @@
   # Publish directory (Next.js standard build output)
   publish = ".next"
 
-# Use Next.js Runtime for Netlify
-[[plugins]]
-  package = "@netlify/plugin-nextjs"
-
 [build.environment]
   # Node.js version
   NODE_VERSION = "18"
+  # Skip Next.js plugin to avoid SSR issues
+  NETLIFY_NEXT_PLUGIN_SKIP = "true"
 
 # Headers for security and performance
 [[headers]]
