@@ -1,8 +1,8 @@
 [build]
-  # Build command for the web app
+  # Build command for the monorepo (builds web app)
   command = "npm run build"
-  # Publish directory (Next.js standard build output)
-  publish = ".next"
+  # Publish directory (Next.js build output from web app)
+  publish = "apps/web/.next"
 
 [build.environment]
   # Node.js version
