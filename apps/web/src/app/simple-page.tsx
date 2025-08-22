@@ -1,13 +1,4 @@
-"use client"
-
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Shield, Sparkles } from "lucide-react"
-import { ConnectButton } from "@rainbow-me/rainbowkit"
-
-export default function Home() {
-  const router = useRouter()
-
+export default function SimplePage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -16,7 +7,7 @@ export default function Home() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-                <Shield className="h-6 w-6 text-white" />
+                <span className="text-white font-bold">S</span>
               </div>
               <div>
                 <h1 className="text-xl font-bold text-primary">SapaSafe</h1>
@@ -24,35 +15,9 @@ export default function Home() {
               </div>
             </div>
             
-            <ConnectButton.Custom>
-              {({
-                account,
-                chain,
-                openAccountModal,
-                openChainModal,
-                openConnectModal,
-                authenticationStatus,
-                mounted,
-              }) => {
-                const ready = mounted && authenticationStatus !== 'loading'
-                const connected =
-                  ready &&
-                  account &&
-                  chain &&
-                  (!authenticationStatus ||
-                    authenticationStatus === 'authenticated')
-
-                return (
-                  <Button
-                    className={connected ? "bg-accent hover:bg-accent/90" : "bg-primary hover:bg-primary/90"}
-                    onClick={connected ? () => router.push("/dashboard") : openConnectModal}
-                    disabled={!ready}
-                  >
-                    {!ready ? 'Loading...' : connected ? 'Launch App' : 'Connect Wallet'}
-                  </Button>
-                )
-              }}
-            </ConnectButton.Custom>
+            <button className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90">
+              Connect Wallet
+            </button>
           </div>
         </div>
       </header>
@@ -62,7 +27,7 @@ export default function Home() {
         <div className="container mx-auto max-w-6xl text-center">
           {/* Badge */}
           <div className="inline-flex items-center gap-2 px-4 py-2 mb-8 bg-yellow-100 text-yellow-800 rounded-full">
-            <Sparkles className="h-4 w-4" />
+            <span className="text-sm">✨</span>
             <span className="font-semibold text-sm">Built on Celo Blockchain</span>
           </div>
 
