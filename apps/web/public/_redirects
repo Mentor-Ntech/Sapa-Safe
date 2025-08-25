@@ -1,8 +1,0 @@
-# Next.js routing - handle client-side routing
-/*    /index.html   200
-
-# Handle Next.js static files
-/_next/*    /_next/:splat    200
-
-# Handle API routes (if any)
-/api/*    /api/:splat    200
