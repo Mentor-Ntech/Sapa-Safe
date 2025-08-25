@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
-import { SimpleWalletProvider } from '@/components/simple-wallet-provider';
+import { DirectProvider } from '@/components/direct-provider';
+import { NavProvider } from '@/components/nav-context';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -25,9 +26,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <SimpleWalletProvider>
-          {children}
-        </SimpleWalletProvider>
+        <DirectProvider>
+          <NavProvider>
+            {children}
+          </NavProvider>
+        </DirectProvider>
       </body>
     </html>
   );
