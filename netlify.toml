@@ -38,10 +38,3 @@
   for = "/*.svg"
   [headers.values]
     Cache-Control = "public, max-age=86400"
-
-# Next.js routing - handle client-side routing
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-  force = true
