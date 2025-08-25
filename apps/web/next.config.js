@@ -3,8 +3,6 @@ const nextConfig = {
   reactStrictMode: true,
   // Disable trailing slash for cleaner URLs
   trailingSlash: false,
-  // Ensure proper asset handling
-  assetPrefix: process.env.NODE_ENV === 'production' ? undefined : undefined,
   // Enable experimental features for better Netlify support
   experimental: {
     // Allow Netlify to handle routing
