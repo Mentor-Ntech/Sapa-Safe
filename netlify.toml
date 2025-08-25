@@ -11,6 +11,10 @@
   NPM_FLAGS = "--legacy-peer-deps"
   # Force npm to be used instead of pnpm
   NPM_CONFIG_PACKAGE_MANAGER = "npm"
+  # Disable pnpm completely
+  PNPM_HOME = ""
+  # Force npm installation
+  NPM_CONFIG_PREFER_NPM = "true"
 
 # Use Next.js Runtime for Netlify
 [[plugins]]
