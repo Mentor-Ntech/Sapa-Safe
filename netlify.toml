@@ -1,6 +1,6 @@
 [build]
   # Build command for the monorepo (builds web app)
-  command = "cd apps/web && npm install && npm run build"
+  command = "cd apps/web && npm install --ignore-scripts && npm run build"
   # Publish directory (Next.js build output)
   publish = "apps/web/.next"
 
@@ -11,6 +11,10 @@
   NPM_FLAGS = "--legacy-peer-deps"
   # Force npm to be used instead of pnpm
   NPM_CONFIG_PACKAGE_MANAGER = "npm"
+  # Skip husky installation in CI/CD environment
+  HUSKY = "0"
+  # Skip git hooks during npm install
+  NPM_CONFIG_IGNORE_SCRIPTS = "1"
 
 # Use Next.js Runtime for Netlify
 [[plugins]]
