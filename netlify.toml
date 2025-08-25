@@ -1,12 +1,14 @@
 [build]
   # Build command for the monorepo (builds web app)
-  command = "cd apps/web && npm run build"
-  # Publish directory (Next.js build output from web app)
+  command = "cd apps/web && npm install && npm run build"
+  # Publish directory (Next.js build output)
   publish = "apps/web/.next"
 
 [build.environment]
   # Node.js version
   NODE_VERSION = "18"
+  # Use npm instead of pnpm for better compatibility
+  NPM_FLAGS = "--legacy-peer-deps"
 
 # Use Next.js Runtime for Netlify
 [[plugins]]
