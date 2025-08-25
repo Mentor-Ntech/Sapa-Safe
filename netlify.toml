@@ -9,6 +9,8 @@
   NODE_VERSION = "18"
   # Use npm instead of pnpm for better compatibility
   NPM_FLAGS = "--legacy-peer-deps"
+  # Force npm to be used instead of pnpm
+  NPM_CONFIG_PACKAGE_MANAGER = "npm"
 
 # Use Next.js Runtime for Netlify
 [[plugins]]
