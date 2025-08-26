@@ -46,7 +46,7 @@ export default function VaultsPage() {
   }
 
   const handleViewDetails = (vaultAddress: string) => {
-    router.push(`/vault-details/${vaultAddress}`)
+    router.push(`/vault-details?id=${vaultAddress}`)
   }
 
   const handleRefresh = async () => {
