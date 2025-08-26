@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect, Suspense } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { useSavingsVault, usePenaltyManager, useTokenRegistry } from "@/Hooks"
 import { useAccount } from "wagmi"
 import { Button } from "@/components/ui/button"
@@ -26,11 +26,10 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
-function VaultDetailsContent() {
+export default function VaultDetailsPage({ params }: { params: { id: string } }) {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const { address, isConnected } = useAccount()
-  const vaultAddress = searchParams?.get('id') as `0x${string}`
+  const vaultAddress = params.id as `0x${string}`
   
   // Use the vault hook to get real data
   const vault = useSavingsVault(vaultAddress)
@@ -46,13 +45,6 @@ function VaultDetailsContent() {
   const [showEarlyWithdrawConfirm, setShowEarlyWithdrawConfirm] = useState(false)
   const [showMonthlyPaymentModal, setShowMonthlyPaymentModal] = useState(false)
   const [selectedMonth, setSelectedMonth] = useState(1)
-
-  // Redirect if no vault address
-  useEffect(() => {
-    if (!vaultAddress) {
-      router.push('/vaults')
-    }
-  }, [vaultAddress, router])
 
   console.log('Vault details:', {
     vaultAddress,
@@ -154,19 +146,6 @@ function VaultDetailsContent() {
       console.error('Error processing all missed payments:', error)
       toast.error('Failed to process missed payments')
     }
-  }
-
-  if (!vaultAddress) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center py-8">
-            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-            <p>Loading vault details...</p>
-          </div>
-        </div>
-      </div>
-    )
   }
 
   if (!isConnected) {
@@ -494,22 +473,5 @@ function VaultDetailsContent() {
         )}
       </div>
     </div>
-  )
-}
-
-export default function VaultDetailsPage() {
-  return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center py-8">
-            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-            <p>Loading vault details...</p>
-          </div>
-        </div>
-      </div>
-    }>
-      <VaultDetailsContent />
-    </Suspense>
   )
 }
