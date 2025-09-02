@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 
-import { AppProvider } from "@/components/wallet-provider"
+import { ClientWalletProvider } from "@/components/client-wallet-provider"
 import { NavProvider } from "@/components/nav-context"
 import { ConditionalMobileNav } from "@/components/conditional-mobile-nav"
 import { Toaster } from 'sonner';
@@ -21,8 +21,8 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>
-        <AppProvider>
+      <body className={inter.className} suppressHydrationWarning={true}>
+        <ClientWalletProvider>
           <NavProvider>
             <div className="relative flex min-h-screen flex-col">
               <main className="flex-1">
@@ -37,7 +37,7 @@ export default function RootLayout({
               duration={4000}
             />
           </NavProvider>
-        </AppProvider>
+        </ClientWalletProvider>
       </body>
     </html>
   );
