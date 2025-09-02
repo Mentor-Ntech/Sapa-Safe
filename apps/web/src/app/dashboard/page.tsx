@@ -64,24 +64,34 @@ export default function Dashboard() {
         
         // Add timeout to prevent infinite loading
         const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('Data loading timeout')), 10000)
+          setTimeout(() => reject(new Error('Data loading timeout')), 15000)
         })
         
-        // Get user vaults with timeout
-        await refreshVaultData()
-        
-        // Refresh status-based vault data
-        await vaultFactory.refetchUserActiveVaults()
-        await vaultFactory.refetchUserCompletedVaults()
-        await vaultFactory.refetchUserEarlyWithdrawnVaults()
-        await vaultFactory.refetchUserVaultStatusSummary()
+        // Race the data loading against the timeout
+        await Promise.race([
+          (async () => {
+            // Get user vaults
+            await refreshVaultData()
+            
+            // Refresh status-based vault data
+            await vaultFactory.refetchUserActiveVaults()
+            await vaultFactory.refetchUserCompletedVaults()
+            await vaultFactory.refetchUserEarlyWithdrawnVaults()
+            await vaultFactory.refetchUserVaultStatusSummary()
 
-        // For now, skip analytics since we don't have detailed vault info yet
-        setAnalytics(null)
+            // For now, skip analytics since we don't have detailed vault info yet
+            setAnalytics(null)
+          })(),
+          timeoutPromise
+        ])
 
       } catch (error) {
         console.error('Error loading dashboard data:', error)
-        toast.error('Failed to load dashboard data')
+        if (error instanceof Error && error.message === 'Data loading timeout') {
+          toast.error('Data loading timed out. Please try again.')
+        } else {
+          toast.error('Failed to load dashboard data')
+        }
         // Set empty vaults to prevent infinite loading
 
       } finally {
