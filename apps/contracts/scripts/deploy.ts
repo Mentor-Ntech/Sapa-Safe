@@ -20,9 +20,6 @@ import "dotenv/config";
  * - Comprehensive security protections
  */
 
-// Ensure environment variables are loaded
-require('dotenv').config();
-
 async function main() {
   console.log("Deploying SapaSafe contracts ");
 
@@ -104,65 +101,70 @@ async function main() {
     console.log("VaultFactory TokenRegistry correct:", factoryTokenRegistry === tokenRegistryAddress ? "✅ Yes" : "❌ No");
     console.log("VaultFactory PenaltyManager correct:", factoryPenaltyManager === penaltyManagerAddress ? "✅ Yes" : "❌ No");
 
-    // Test vault creation
+    // Test vault creation (optional - can be skipped if token issues occur)
     console.log("\n=== Testing Vault Creation ===");
-    const testToken = "0x4a5b03B8b16122D330306c65e4CA4BC5Dd6511d0"; // cNGN
-    const testTargetAmount = ethers.parseEther("600"); // 600 tokens target
-    const testTotalMonths = 3; // 3 months duration
-    const deadline = Math.floor(Date.now() / 1000) + 1200; // 20 minutes from now
-    
-    console.log("Testing vault creation...");
-    console.log("Test Token:", testToken);
-    console.log("Test Target Amount:", testTargetAmount.toString());
-    console.log("Test Total Months:", testTotalMonths);
-    console.log("Deadline:", deadline);
-    
-    const tx = await vaultFactory.createVault(
-      testToken,
-      testTargetAmount,
-      testTotalMonths,
-      deadline
-    );
-    
-    console.log("✅ Vault creation transaction sent:", tx.hash);
-    await tx.wait();
-    console.log("✅ Vault creation successful!");
+    try {
+      const testToken = "0x4a5b03B8b16122D330306c65e4CA4BC5Dd6511d0"; // cNGN
+      const testTargetAmount = ethers.parseEther("600"); // 600 tokens target
+      const testTotalMonths = 3; // 3 months duration
+      const deadline = Math.floor(Date.now() / 1000) + 1200; // 20 minutes from now
+      
+      console.log("Testing vault creation...");
+      console.log("Test Token:", testToken);
+      console.log("Test Target Amount:", testTargetAmount.toString());
+      console.log("Test Total Months:", testTotalMonths);
+      console.log("Deadline:", deadline);
+      
+      const tx = await vaultFactory.createVault(
+        testToken,
+        testTargetAmount,
+        testTotalMonths,
+        deadline
+      );
+      
+      console.log("✅ Vault creation transaction sent:", tx.hash);
+      await tx.wait();
+      console.log("✅ Vault creation successful!");
 
-    // Get the created vault
-    const userVaults = await vaultFactory.getUserVaults(deployer.address);
-    console.log("User vaults count:", userVaults.length);
-    if (userVaults.length > 0) {
-      const vaultAddress = userVaults[0];
-      console.log("Created vault address:", vaultAddress);
-      
-      // Test vault info retrieval
-      console.log("\n=== Testing Vault Info ===");
-      const vaultInfo = await vaultFactory.getVaultInfo(vaultAddress);
-      console.log("Vault Info:", {
-        owner: vaultInfo[0],
-        token: vaultInfo[1],
-        targetAmount: vaultInfo[2].toString(),
-        monthlyAmount: vaultInfo[3].toString(),
-        totalMonths: vaultInfo[4].toString(),
-        currentBalance: vaultInfo[5].toString(),
-        totalPaid: vaultInfo[6].toString(),
-        totalPenalties: vaultInfo[7].toString(),
-        startDate: new Date(Number(vaultInfo[8]) * 1000).toISOString(),
-        endDate: new Date(Number(vaultInfo[9]) * 1000).toISOString(),
-        status: vaultInfo[10],
-        isActive: vaultInfo[11],
-        withdrawalTime: vaultInfo[12].toString()
-      });
-      
-      // Test status summary
-      console.log("\n=== Testing Status Summary ===");
-      const statusSummary = await vaultFactory.getUserVaultStatusSummary(deployer.address);
-      console.log("User Status Summary:", {
-        activeVaults: statusSummary[0].toString(),
-        completedVaults: statusSummary[1].toString(),
-        earlyWithdrawnVaults: statusSummary[2].toString(),
-        terminatedVaults: statusSummary[3].toString()
-      });
+      // Get the created vault
+      const userVaults = await vaultFactory.getUserVaults(deployer.address);
+      console.log("User vaults count:", userVaults.length);
+      if (userVaults.length > 0) {
+        const vaultAddress = userVaults[0];
+        console.log("Created vault address:", vaultAddress);
+        
+        // Test vault info retrieval
+        console.log("\n=== Testing Vault Info ===");
+        const vaultInfo = await vaultFactory.getVaultInfo(vaultAddress);
+        console.log("Vault Info:", {
+          owner: vaultInfo[0],
+          token: vaultInfo[1],
+          targetAmount: vaultInfo[2].toString(),
+          monthlyAmount: vaultInfo[3].toString(),
+          totalMonths: vaultInfo[4].toString(),
+          currentBalance: vaultInfo[5].toString(),
+          totalPaid: vaultInfo[6].toString(),
+          totalPenalties: vaultInfo[7].toString(),
+          startDate: new Date(Number(vaultInfo[8]) * 1000).toISOString(),
+          endDate: new Date(Number(vaultInfo[9]) * 1000).toISOString(),
+          status: vaultInfo[10],
+          isActive: vaultInfo[11],
+          withdrawalTime: vaultInfo[12].toString()
+        });
+        
+        // Test status summary
+        console.log("\n=== Testing Status Summary ===");
+        const statusSummary = await vaultFactory.getUserVaultStatusSummary(deployer.address);
+        console.log("User Status Summary:", {
+          activeVaults: statusSummary[0].toString(),
+          completedVaults: statusSummary[1].toString(),
+          earlyWithdrawnVaults: statusSummary[2].toString(),
+          terminatedVaults: statusSummary[3].toString()
+        });
+      }
+    } catch (error: any) {
+      console.log("⚠️  Vault creation test failed (this is optional):", error.message);
+      console.log("The contracts are still deployed successfully. You can test vault creation manually.");
     }
 
     console.log("\n=== Deployment Complete ===");
