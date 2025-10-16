@@ -84,19 +84,28 @@ export const useVaultFactory = () => {
   // Helper function to create vault with parameters
   const createVaultWithParams = useCallback(async (
     tokenAddress: `0x${string}`,
-    amount: bigint,
-    duration: bigint,
+    targetAmount: bigint,
+    totalMonths: number,
     goal: string
   ) => {
     try {
-      console.log('Creating vault with params:', { tokenAddress, amount: amount.toString(), duration: duration.toString() })
+      console.log('Creating monthly savings vault with params:', { 
+        tokenAddress, 
+        targetAmount: targetAmount.toString(), 
+        totalMonths,
+        goal 
+      })
       
       if (!address) {
         throw new Error('No wallet address available')
       }
       
-      if (!tokenAddress || !amount || !duration) {
+      if (!tokenAddress || !targetAmount || !totalMonths) {
         throw new Error('Missing required parameters')
+      }
+      
+      if (totalMonths < 1 || totalMonths > 12) {
+        throw new Error('Total months must be between 1 and 12')
       }
       
       // Check if we're on the correct network
@@ -107,17 +116,17 @@ export const useVaultFactory = () => {
       // Set deadline to 20 minutes from now
       const deadline = BigInt(Math.floor(Date.now() / 1000) + 1200) // 20 minutes
       
-      console.log('Calling createVault with args:', [tokenAddress, amount.toString(), duration.toString(), deadline.toString()])
+      console.log('Calling createVault with args:', [tokenAddress, targetAmount.toString(), totalMonths, deadline.toString()])
       
       // Call createVault - this will trigger the transaction
       createVault({
         address: vaultFactoryAddress as `0x${string}`,
         abi: VAULT_FACTORY_ABI,
         functionName: 'createVault',
-        args: [tokenAddress, amount, duration, deadline],
+        args: [tokenAddress, targetAmount, BigInt(totalMonths), deadline],
       })
       
-      console.log('✅ Vault creation transaction sent!')
+      console.log('✅ Monthly savings vault creation transaction sent!')
       return createVaultData
       
     } catch (error) {

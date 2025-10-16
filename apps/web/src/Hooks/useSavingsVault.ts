@@ -14,7 +14,7 @@ export const useSavingsVault = (vaultAddress?: `0x${string}`) => {
     isAlfajores: chainId === 44787 
   })
 
-  // Read: Get vault info
+  // Read: Get vault info (13-element tuple)
   const { 
     data: vaultInfo, 
     isLoading: isLoadingVaultInfo, 
@@ -33,148 +33,57 @@ export const useSavingsVault = (vaultAddress?: `0x${string}`) => {
     isLoadingVaultInfo 
   })
 
-  // Read: Get vault balance
+  // Read: Get current month
   const { 
-    data: vaultBalance, 
-    isLoading: isLoadingBalance 
+    data: currentMonth, 
+    isLoading: isLoadingCurrentMonth 
   } = useReadContract({
     address: vaultAddress,
     abi: SAVINGS_VAULT_ABI,
-    functionName: 'getVaultBalance',
+    functionName: 'currentMonth',
     query: {
       enabled: !!vaultAddress,
     }
   })
 
-  console.log('Vault balance query:', { 
-    vaultBalance, 
-    isLoadingBalance 
-  })
-
-  // Read: Check if vault is unlocked
+  // Read: Get monthly payment info
   const { 
-    data: isUnlocked, 
-    isLoading: isLoadingUnlockStatus 
+    data: monthlyPayment, 
+    isLoading: isLoadingMonthlyPayment 
   } = useReadContract({
     address: vaultAddress,
     abi: SAVINGS_VAULT_ABI,
-    functionName: 'isUnlocked',
+    functionName: 'getMonthlyPayment',
+    args: [currentMonth || 1n],
+    query: {
+      enabled: !!vaultAddress && !!currentMonth,
+    }
+  })
+
+  // Read: Get progress percentage
+  const { 
+    data: progressPercentage, 
+    isLoading: isLoadingProgress 
+  } = useReadContract({
+    address: vaultAddress,
+    abi: SAVINGS_VAULT_ABI,
+    functionName: 'getProgressPercentage',
     query: {
       enabled: !!vaultAddress,
     }
   })
 
-  console.log('Vault unlock status query:', { 
-    isUnlocked, 
-    isLoadingUnlockStatus 
-  })
-
-  // Read: Get remaining time
+  // Read: Check if vault is completed
   const { 
-    data: remainingTime, 
-    isLoading: isLoadingRemainingTime 
+    data: isCompleted, 
+    isLoading: isLoadingCompleted 
   } = useReadContract({
     address: vaultAddress,
     abi: SAVINGS_VAULT_ABI,
-    functionName: 'getRemainingTime',
+    functionName: 'isCompleted',
     query: {
       enabled: !!vaultAddress,
     }
-  })
-
-  console.log('Remaining time query:', { 
-    remainingTime, 
-    isLoadingRemainingTime 
-  })
-
-  // Read: Get vault status string
-  const { 
-    data: vaultStatusString, 
-    isLoading: isLoadingStatusString 
-  } = useReadContract({
-    address: vaultAddress,
-    abi: SAVINGS_VAULT_ABI,
-    functionName: 'getVaultStatusString',
-    query: {
-      enabled: !!vaultAddress,
-    }
-  })
-
-  console.log('Vault status string query:', { 
-    vaultStatusString, 
-    isLoadingStatusString 
-  })
-
-  // Read: Get vault status (enum)
-  const { 
-    data: vaultStatus, 
-    isLoading: isLoadingVaultStatus 
-  } = useReadContract({
-    address: vaultAddress,
-    abi: SAVINGS_VAULT_ABI,
-    functionName: 'getVaultStatus',
-    query: {
-      enabled: !!vaultAddress,
-    }
-  })
-
-  console.log('Vault status query:', { 
-    vaultStatus, 
-    isLoadingVaultStatus 
-  })
-
-  // Read: Check if vault is active
-  const { 
-    data: isVaultActive, 
-    isLoading: isLoadingVaultActive 
-  } = useReadContract({
-    address: vaultAddress,
-    abi: SAVINGS_VAULT_ABI,
-    functionName: 'isVaultActive',
-    query: {
-      enabled: !!vaultAddress,
-    }
-  })
-
-  console.log('Vault active query:', { 
-    isVaultActive, 
-    isLoadingVaultActive 
-  })
-
-  // Read: Get withdrawal details
-  const { 
-    data: withdrawalDetails, 
-    isLoading: isLoadingWithdrawalDetails 
-  } = useReadContract({
-    address: vaultAddress,
-    abi: SAVINGS_VAULT_ABI,
-    functionName: 'getWithdrawalDetails',
-    query: {
-      enabled: !!vaultAddress,
-    }
-  })
-
-  console.log('Withdrawal details query:', { 
-    withdrawalDetails, 
-    isLoadingWithdrawalDetails 
-  })
-
-  // Read: Check if can withdraw
-  const { 
-    data: canWithdraw, 
-    isLoading: isLoadingCanWithdraw 
-  } = useReadContract({
-    address: vaultAddress,
-    abi: SAVINGS_VAULT_ABI,
-    functionName: 'canWithdraw',
-    query: {
-      enabled: !!vaultAddress,
-    }
-  })
-
-  console.log('Can withdraw query:', { 
-    canWithdraw, 
-    isLoadingCanWithdraw 
   })
 
   // Read: Check if can withdraw early
@@ -190,9 +99,101 @@ export const useSavingsVault = (vaultAddress?: `0x${string}`) => {
     }
   })
 
-  console.log('Can withdraw early query:', { 
-    canWithdrawEarly, 
-    isLoadingCanWithdrawEarly 
+  // Read: Check if can withdraw completed
+  const { 
+    data: canWithdrawCompleted, 
+    isLoading: isLoadingCanWithdrawCompleted 
+  } = useReadContract({
+    address: vaultAddress,
+    abi: SAVINGS_VAULT_ABI,
+    functionName: 'canWithdrawCompleted',
+    query: {
+      enabled: !!vaultAddress,
+    }
+  })
+
+  // Read: Get next payment due date
+  const { 
+    data: nextPaymentDueDate, 
+    isLoading: isLoadingNextPaymentDate 
+  } = useReadContract({
+    address: vaultAddress,
+    abi: SAVINGS_VAULT_ABI,
+    functionName: 'getNextPaymentDueDate',
+    query: {
+      enabled: !!vaultAddress,
+    }
+  })
+
+  // Read: Get missed payments count
+  const { 
+    data: missedPaymentsCount, 
+    isLoading: isLoadingMissedPayments 
+  } = useReadContract({
+    address: vaultAddress,
+    abi: SAVINGS_VAULT_ABI,
+    functionName: 'getMissedPaymentsCount',
+    query: {
+      enabled: !!vaultAddress,
+    }
+  })
+
+  // Read: Get payment summary
+  const { 
+    data: paymentSummary, 
+    isLoading: isLoadingPaymentSummary 
+  } = useReadContract({
+    address: vaultAddress,
+    abi: SAVINGS_VAULT_ABI,
+    functionName: 'getPaymentSummary',
+    query: {
+      enabled: !!vaultAddress,
+    }
+  })
+
+  // Write: Make monthly payment
+  const { 
+    data: makePaymentData, 
+    writeContract: makePayment, 
+    isPending: isMakingPayment,
+    error: makePaymentError 
+  } = useWriteContract()
+
+  const { 
+    isLoading: isMakePaymentPending, 
+    isSuccess: isMakePaymentSuccess 
+  } = useWaitForTransactionReceipt({
+    hash: makePaymentData,
+  })
+
+  // Write: Process missed payment
+  const { 
+    data: processMissedPaymentData, 
+    writeContract: processMissedPayment, 
+    isPending: isProcessingMissedPayment,
+    error: processMissedPaymentError 
+  } = useWriteContract()
+
+  const { 
+    isLoading: isProcessMissedPaymentPending, 
+    isSuccess: isProcessMissedPaymentSuccess 
+  } = useWaitForTransactionReceipt({
+    hash: processMissedPaymentData,
+  })
+
+  // Write: Process all missed payments
+  const { 
+    data: processAllMissedPaymentsData, 
+    writeContract: processAllMissedPayments, 
+    isPending: isProcessingAllMissedPayments,
+    error: processAllMissedPaymentsError 
+  } = useWriteContract()
+
+  const { 
+    isLoading: isProcessAllMissedPaymentsPending, 
+    isSuccess: isProcessAllMissedPaymentsSuccess 
+  } = useWaitForTransactionReceipt({
+    hash: processAllMissedPaymentsData,
   })
 
   // Write: Withdraw completed (no penalty)
@@ -226,6 +227,54 @@ export const useSavingsVault = (vaultAddress?: `0x${string}`) => {
   })
 
   // Helper functions
+  const makeMonthlyPayment = useCallback((month: number) => {
+    if (!vaultAddress) {
+      console.error('No vault address provided')
+      return
+    }
+    
+    console.log('Making monthly payment for month:', month, 'in vault:', vaultAddress)
+    
+    return makePayment({
+      address: vaultAddress,
+      abi: SAVINGS_VAULT_ABI,
+      functionName: 'makeMonthlyPayment',
+      args: [BigInt(month)],
+    })
+  }, [vaultAddress, makePayment])
+
+  const processMissedPaymentForMonth = useCallback((month: number) => {
+    if (!vaultAddress) {
+      console.error('No vault address provided')
+      return
+    }
+    
+    console.log('Processing missed payment for month:', month, 'in vault:', vaultAddress)
+    
+    return processMissedPayment({
+      address: vaultAddress,
+      abi: SAVINGS_VAULT_ABI,
+      functionName: 'processMissedPayment',
+      args: [BigInt(month)],
+    })
+  }, [vaultAddress, processMissedPayment])
+
+  const processAllMissedPaymentsUpTo = useCallback((upToMonth: number) => {
+    if (!vaultAddress) {
+      console.error('No vault address provided')
+      return
+    }
+    
+    console.log('Processing all missed payments up to month:', upToMonth, 'in vault:', vaultAddress)
+    
+    return processAllMissedPayments({
+      address: vaultAddress,
+      abi: SAVINGS_VAULT_ABI,
+      functionName: 'processAllMissedPayments',
+      args: [BigInt(upToMonth)],
+    })
+  }, [vaultAddress, processAllMissedPayments])
+
   const withdrawCompletedFunds = useCallback(() => {
     if (!vaultAddress) {
       console.error('No vault address provided')
@@ -241,55 +290,112 @@ export const useSavingsVault = (vaultAddress?: `0x${string}`) => {
     })
   }, [vaultAddress, withdrawCompleted])
 
-  const withdrawEarlyFunds = useCallback((penaltyAmount: bigint) => {
+  const withdrawEarlyFunds = useCallback(() => {
     if (!vaultAddress) {
       console.error('No vault address provided')
       return
     }
     
-    console.log('Withdrawing early from vault:', vaultAddress, 'with penalty:', penaltyAmount.toString())
+    console.log('Withdrawing early from vault:', vaultAddress)
     
     return withdrawEarly({
       address: vaultAddress,
       abi: SAVINGS_VAULT_ABI,
       functionName: 'withdrawEarly',
-      args: [penaltyAmount],
     })
   }, [vaultAddress, withdrawEarly])
+
+  // Parse vault info into structured data
+  const parsedVaultInfo = vaultInfo && Array.isArray(vaultInfo) ? {
+    owner: vaultInfo[0] as `0x${string}`,
+    token: vaultInfo[1] as `0x${string}`,
+    targetAmount: vaultInfo[2] as bigint,
+    monthlyAmount: vaultInfo[3] as bigint,
+    totalMonths: vaultInfo[4] as bigint,
+    currentBalance: vaultInfo[5] as bigint,
+    totalPaid: vaultInfo[6] as bigint,
+    totalPenalties: vaultInfo[7] as bigint,
+    startDate: vaultInfo[8] as bigint,
+    endDate: vaultInfo[9] as bigint,
+    status: vaultInfo[10] as number, // VaultStatus enum
+    isActive: vaultInfo[11] as boolean,
+    withdrawalTime: vaultInfo[12] as bigint,
+  } : null
+
+  // Parse payment summary into structured data
+  const parsedPaymentSummary = paymentSummary && Array.isArray(paymentSummary) ? {
+    totalShouldPay: paymentSummary[0] as bigint,
+    totalActuallyPaid: paymentSummary[1] as bigint,
+    totalPenaltiesPaid: paymentSummary[2] as bigint,
+    missedPaymentsCount: paymentSummary[3] as bigint,
+    completedPaymentsCount: paymentSummary[4] as bigint,
+  } : null
+
+  // Parse monthly payment into structured data
+  const parsedMonthlyPayment = monthlyPayment && Array.isArray(monthlyPayment) ? {
+    dueDate: monthlyPayment[0] as bigint,
+    amount: monthlyPayment[1] as bigint,
+    status: monthlyPayment[2] as number, // PaymentStatus enum
+    penaltyAmount: monthlyPayment[3] as bigint,
+    penaltyPaid: monthlyPayment[4] as boolean,
+  } : null
 
   return {
     // Vault address
     vaultAddress,
     
-    // Read functions
-    vaultInfo,
+    // Parsed vault info
+    vaultInfo: parsedVaultInfo,
     isLoadingVaultInfo,
     refetchVaultInfo,
-    vaultBalance,
-    isLoadingBalance,
-    isUnlocked,
-    isLoadingUnlockStatus,
-    remainingTime,
-    isLoadingRemainingTime,
-    vaultStatusString,
-    isLoadingStatusString,
-    vaultStatus,
-    isLoadingVaultStatus,
-    isVaultActive,
-    isLoadingVaultActive,
-    withdrawalDetails,
-    isLoadingWithdrawalDetails,
-    canWithdraw,
-    isLoadingCanWithdraw,
+    
+    // Monthly payment system
+    currentMonth,
+    isLoadingCurrentMonth,
+    monthlyPayment: parsedMonthlyPayment,
+    isLoadingMonthlyPayment,
+    progressPercentage,
+    isLoadingProgress,
+    isCompleted,
+    isLoadingCompleted,
+    
+    // Payment management
     canWithdrawEarly,
     isLoadingCanWithdrawEarly,
+    canWithdrawCompleted,
+    isLoadingCanWithdrawCompleted,
+    nextPaymentDueDate,
+    isLoadingNextPaymentDate,
+    missedPaymentsCount,
+    isLoadingMissedPayments,
+    paymentSummary: parsedPaymentSummary,
+    isLoadingPaymentSummary,
     
     // Write functions
+    makeMonthlyPayment,
+    isMakingPayment,
+    makePaymentError,
+    isMakePaymentPending,
+    isMakePaymentSuccess,
+    
+    processMissedPaymentForMonth,
+    isProcessingMissedPayment,
+    processMissedPaymentError,
+    isProcessMissedPaymentPending,
+    isProcessMissedPaymentSuccess,
+    
+    processAllMissedPaymentsUpTo,
+    isProcessingAllMissedPayments,
+    processAllMissedPaymentsError,
+    isProcessAllMissedPaymentsPending,
+    isProcessAllMissedPaymentsSuccess,
+    
     withdrawCompletedFunds,
     isWithdrawingCompleted,
     withdrawCompletedError,
     isWithdrawCompletedPending,
     isWithdrawCompletedSuccess,
+    
     withdrawEarlyFunds,
     isWithdrawingEarly,
     withdrawEarlyError,
@@ -297,6 +403,9 @@ export const useSavingsVault = (vaultAddress?: `0x${string}`) => {
     isWithdrawEarlySuccess,
     
     // Transaction data
+    makePaymentData,
+    processMissedPaymentData,
+    processAllMissedPaymentsData,
     withdrawCompletedData,
     withdrawEarlyData,
   }

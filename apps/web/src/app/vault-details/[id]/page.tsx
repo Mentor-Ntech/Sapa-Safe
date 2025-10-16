@@ -2,11 +2,13 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { useSavingsVault, usePenaltyManager } from "@/Hooks"
+import { useSavingsVault, usePenaltyManager, useTokenRegistry } from "@/Hooks"
 import { useAccount } from "wagmi"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { 
   ArrowLeft, 
   Clock, 
@@ -16,7 +18,11 @@ import {
   CheckCircle,
   TrendingUp,
   History,
-  Loader2
+  Loader2,
+  CreditCard,
+  CalendarDays,
+  Target,
+  PiggyBank
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -28,22 +34,32 @@ export default function VaultDetailsPage({ params }: { params: { id: string } })
   // Use the vault hook to get real data
   const vault = useSavingsVault(vaultAddress)
   const penaltyManager = usePenaltyManager()
+  const tokenRegistry = useTokenRegistry()
+  
+  // Get token symbol from registry
+  const tokenSymbol = vault.vaultInfo?.token ? 
+    tokenRegistry.supportedTokens.find(t => t.address.toLowerCase() === vault.vaultInfo?.token.toLowerCase())?.symbol || 'TOKEN' 
+    : 'TOKEN'
   
   const [isWithdrawing, setIsWithdrawing] = useState(false)
   const [showEarlyWithdrawConfirm, setShowEarlyWithdrawConfirm] = useState(false)
+  const [showMonthlyPaymentModal, setShowMonthlyPaymentModal] = useState(false)
+  const [selectedMonth, setSelectedMonth] = useState(1)
 
   console.log('Vault details:', {
     vaultAddress,
     vaultInfo: vault.vaultInfo,
-    vaultBalance: vault.vaultBalance,
-    isUnlocked: vault.isUnlocked,
-    remainingTime: vault.remainingTime,
-    canWithdraw: vault.canWithdraw,
-    canWithdrawEarly: vault.canWithdrawEarly
+    currentMonth: vault.currentMonth,
+    monthlyPayment: vault.monthlyPayment,
+    progressPercentage: vault.progressPercentage,
+    isCompleted: vault.isCompleted,
+    canWithdrawCompleted: vault.canWithdrawCompleted,
+    canWithdrawEarly: vault.canWithdrawEarly,
+    paymentSummary: vault.paymentSummary
   })
 
   const handleWithdraw = async () => {
-    if (!vault.canWithdraw) {
+    if (!vault.canWithdrawCompleted) {
       toast.error('Vault is not ready for withdrawal')
       return
     }
@@ -70,12 +86,8 @@ export default function VaultDetailsPage({ params }: { params: { id: string } })
     try {
       setIsWithdrawing(true)
       
-      // Calculate penalty
-      const balance = typeof vault.vaultBalance === 'bigint' ? vault.vaultBalance : 0n
-      const { penalty } = await penaltyManager.calculatePenalty(balance)
-      
-      // Perform early withdrawal
-      await vault.withdrawEarlyFunds(penalty)
+      // Perform early withdrawal (penalty is calculated in the contract)
+      await vault.withdrawEarlyFunds()
       
       toast.success('Early withdrawal initiated! Check your wallet for confirmation.')
       setShowEarlyWithdrawConfirm(false)
@@ -88,319 +100,378 @@ export default function VaultDetailsPage({ params }: { params: { id: string } })
     }
   }
 
-  const getStatusColor = (isUnlocked: boolean) => {
-    return isUnlocked ? "sapasafe-status-success" : "sapasafe-status-info"
+  const handleMonthlyPayment = async () => {
+    if (!vault.vaultInfo || !vault.currentMonth) {
+      toast.error('Vault information not available')
+      return
+    }
+
+    try {
+      // Make the monthly payment (approval is handled by the contract)
+      await vault.makeMonthlyPayment(Number(vault.currentMonth))
+      
+      toast.success('Monthly payment initiated! Check your wallet for confirmation.')
+      setShowMonthlyPaymentModal(false)
+    } catch (error) {
+      console.error('Error making monthly payment:', error)
+      toast.error('Failed to make monthly payment')
+    }
   }
 
-  const getStatusIcon = (isUnlocked: boolean) => {
-    return isUnlocked ? <CheckCircle className="h-4 w-4" /> : <Clock className="h-4 w-4" />
+  const handleProcessMissedPayment = async () => {
+    if (!vault.vaultInfo || !vault.currentMonth) {
+      toast.error('Vault information not available')
+      return
+    }
+
+    try {
+      await vault.processMissedPaymentForMonth(Number(vault.currentMonth))
+      toast.success('Missed payment processed! Check your wallet for confirmation.')
+    } catch (error) {
+      console.error('Error processing missed payment:', error)
+      toast.error('Failed to process missed payment')
+    }
   }
 
-  const getStatusText = (isUnlocked: boolean) => {
-    return isUnlocked ? "Unlocked" : "Locked"
+  const handleProcessAllMissedPayments = async () => {
+    if (!vault.vaultInfo) {
+      toast.error('Vault information not available')
+      return
+    }
+
+    try {
+      await vault.processAllMissedPaymentsUpTo(Number(vault.currentMonth))
+      toast.success('All missed payments processed! Check your wallet for confirmation.')
+    } catch (error) {
+      console.error('Error processing all missed payments:', error)
+      toast.error('Failed to process missed payments')
+    }
   }
 
-  const formatAmount = (amount: bigint, decimals: number = 18) => {
-    if (!amount) return '0'
-    return (Number(amount) / 10**decimals).toFixed(2)
-  }
-
-  const formatTime = (seconds: bigint) => {
-    if (!seconds) return '0 days'
-    const days = Number(seconds) / (24 * 60 * 60)
-    return `${Math.ceil(days)} days`
-  }
-
-  // Loading state
-  if (vault.isLoadingVaultInfo || vault.isLoadingBalance) {
-    return (
-      <div className="min-h-screen bg-background pb-20">
-        <div className="flex items-center justify-center h-screen">
-          <div className="text-center">
-            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-            <p>Loading vault details...</p>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // Not connected state
   if (!isConnected) {
     return (
-      <div className="min-h-screen bg-background pb-20">
-        <div className="container mx-auto px-4 py-8">
-          <div className="text-center">
-            <h1 className="sapasafe-heading-1 mb-4">Connect Your Wallet</h1>
-            <p className="sapasafe-text text-muted-foreground">
-              Connect your wallet to view vault details
-            </p>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center py-8">
+            <AlertTriangle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
+            <h2 className="text-xl font-semibold mb-2">Wallet Not Connected</h2>
+            <p className="text-gray-600 mb-4">Please connect your wallet to view vault details.</p>
+            <Button onClick={() => router.push('/')}>Connect Wallet</Button>
           </div>
         </div>
       </div>
     )
   }
 
-  return (
-    <div className="min-h-screen bg-background pb-20">
-      {/* Header */}
-      <div className="bg-primary text-white px-4 py-6">
-        <div className="flex items-center gap-4">
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="text-white hover:bg-white/20"
-            onClick={() => router.back()}
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back
-          </Button>
-          <div>
-            <h1 className="sapasafe-heading-2">Savings Vault</h1>
-            <p className="sapasafe-text-large opacity-90">
-              {vaultAddress.slice(0, 8)}...{vaultAddress.slice(-6)}
-            </p>
+  if (!vault.vaultInfo) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+            <p>Loading vault information...</p>
           </div>
         </div>
       </div>
+    )
+  }
 
-            <div className="px-4 py-6 space-y-6">
-        {/* Overview Card */}
-        <Card className="sapasafe-card">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
-                  <DollarSign className="h-6 w-6 text-primary" />
-                </div>
-                <div>
-                  <h3 className="sapasafe-heading-3">Vault Overview</h3>
-                  <p className="sapasafe-text text-muted-foreground">
-                    Current vault status and key information
-                  </p>
-                </div>
+  const vaultInfo = vault.vaultInfo
+  const currentMonth = Number(vault.currentMonth)
+  const progressPercentage = Number(vault.progressPercentage) || 0
+  const isCompleted = Boolean(vault.isCompleted)
+  const canWithdrawCompleted = Boolean(vault.canWithdrawCompleted)
+  const canWithdrawEarly = Boolean(vault.canWithdrawEarly)
+  const paymentSummary = vault.paymentSummary
+  const nextPaymentDueDate = vault.nextPaymentDueDate
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+      <div className="max-w-4xl mx-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <Button
+            variant="ghost"
+            onClick={() => router.push('/vaults')}
+            className="flex items-center gap-2"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Vaults
+          </Button>
+          <h1 className="text-2xl font-bold text-gray-900">Vault Details</h1>
+        </div>
+
+        {/* Vault Overview */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <PiggyBank className="h-5 w-5" />
+              Vault Overview
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-gray-500">Vault Address</Label>
+                <p className="text-sm font-mono bg-gray-100 p-2 rounded">{vaultAddress}</p>
               </div>
-              <Badge className={getStatusColor(Boolean(vault.isUnlocked))}>
-                {getStatusIcon(Boolean(vault.isUnlocked))}
-                {getStatusText(Boolean(vault.isUnlocked))}
-              </Badge>
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-gray-500">Status</Label>
+                <Badge variant={isCompleted ? "default" : "secondary"}>
+                  {isCompleted ? "Completed" : "Active"}
+                </Badge>
+              </div>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <p className="sapasafe-text-sm text-muted-foreground">Vault Balance</p>
-                <p className="sapasafe-heading-2 text-primary">
-                  {formatAmount(typeof vault.vaultBalance === 'bigint' ? vault.vaultBalance : 0n)}
+                <Label className="text-sm font-medium text-gray-500">Target Amount</Label>
+                <p className="text-lg font-semibold">
+                  {vaultInfo.targetAmount ? (Number(vaultInfo.targetAmount) / 1e18).toFixed(2) : '0'} {tokenSymbol}
                 </p>
-                <p className="sapasafe-text-xs text-muted-foreground">Total locked amount</p>
               </div>
               <div className="space-y-2">
-                <p className="sapasafe-text-sm text-muted-foreground">Time Remaining</p>
-                <p className="sapasafe-heading-2 text-primary">
-                  {formatTime(typeof vault.remainingTime === 'bigint' ? vault.remainingTime : 0n)}
+                <Label className="text-sm font-medium text-gray-500">Monthly Amount</Label>
+                <p className="text-lg font-semibold">
+                  {vaultInfo.monthlyAmount ? (Number(vaultInfo.monthlyAmount) / 1e18).toFixed(2) : '0'} {tokenSymbol}
                 </p>
-                <p className="sapasafe-text-xs text-muted-foreground">Until unlock</p>
               </div>
               <div className="space-y-2">
-                <p className="sapasafe-text-sm text-muted-foreground">Vault Address</p>
-                <p className="sapasafe-text-sm font-mono bg-muted p-2 rounded">
-                  {vaultAddress.slice(0, 8)}...{vaultAddress.slice(-6)}
-                </p>
-                <p className="sapasafe-text-xs text-muted-foreground">Contract address</p>
+                <Label className="text-sm font-medium text-gray-500">Total Months</Label>
+                <p className="text-lg font-semibold">{vaultInfo.totalMonths || 0}</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Progress Card */}
-        <Card className="sapasafe-card">
-          <CardHeader>
-            <CardTitle className="sapasafe-heading-3">Lock Progress</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <span className="sapasafe-text-sm text-muted-foreground">Lock Period Progress</span>
-                <span className="sapasafe-text-sm font-medium">
-                  {vault.isUnlocked ? '100%' : 'In Progress'}
-                </span>
+        {/* Progress and Current Status */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          {/* Progress Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5" />
+                Progress
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span>Current Month: {currentMonth}</span>
+                  <span>{progressPercentage}% Complete</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div 
+                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${progressPercentage}%` }}
+                  ></div>
+                </div>
               </div>
-              <div className="w-full bg-muted rounded-full h-2">
-                <div 
-                  className={`h-2 rounded-full transition-all duration-300 ${
-                    vault.isUnlocked ? 'bg-success' : 'bg-primary'
-                  }`}
-                  style={{ 
-                    width: vault.isUnlocked ? '100%' : '50%' // Simplified progress for now
-                  }}
-                ></div>
-              </div>
-              <p className="sapasafe-text-xs text-muted-foreground">
-                {vault.isUnlocked 
-                  ? 'Vault is fully unlocked and ready for withdrawal'
-                  : 'Vault is still in lock period'
-                }
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Actions Card */}
-        <Card className="sapasafe-card">
-          <CardHeader>
-            <CardTitle className="sapasafe-heading-3">Vault Actions</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {vault.canWithdraw ? (
-              <div className="space-y-3">
-                <div className="p-4 bg-success/5 rounded-lg border border-success/20">
-                  <div className="flex items-center gap-2 mb-2">
-                    <CheckCircle className="h-5 w-5 text-success" />
-                    <p className="sapasafe-text-sm font-medium text-success">
-                      Ready for Withdrawal
-                    </p>
-                  </div>
-                  <p className="sapasafe-text-xs text-muted-foreground">
-                    Your vault is unlocked and ready for withdrawal. You can withdraw the full amount without any penalty.
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label className="text-sm font-medium text-gray-500">Current Balance</Label>
+                  <p className="text-lg font-semibold">
+                    {vaultInfo.currentBalance ? (Number(vaultInfo.currentBalance) / 1e18).toFixed(2) : '0'} {tokenSymbol}
                   </p>
                 </div>
+                <div className="space-y-1">
+                  <Label className="text-sm font-medium text-gray-500">Total Paid</Label>
+                  <p className="text-lg font-semibold">
+                    {vaultInfo.totalPaid ? (Number(vaultInfo.totalPaid) / 1e18).toFixed(2) : '0'} {tokenSymbol}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Actions Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CreditCard className="h-5 w-5" />
+                Actions
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {!isCompleted && (
+                <Button 
+                  onClick={() => setShowMonthlyPaymentModal(true)}
+                  className="w-full"
+                  disabled={currentMonth > vaultInfo.totalMonths}
+                >
+                  <CalendarDays className="mr-2 h-4 w-4" />
+                  Make Monthly Payment
+                </Button>
+              )}
+              
+              {canWithdrawCompleted && (
                 <Button 
                   onClick={handleWithdraw}
+                  className="w-full bg-green-600 hover:bg-green-700"
                   disabled={isWithdrawing}
-                  className="w-full sapasafe-btn-primary"
                 >
                   {isWithdrawing ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
                     <CheckCircle className="mr-2 h-4 w-4" />
                   )}
-                  {isWithdrawing ? 'Withdrawing...' : 'Withdraw Funds'}
+                  Withdraw Completed Funds
                 </Button>
-              </div>
-            ) : vault.canWithdrawEarly ? (
-              <div className="space-y-3">
-                <div className="p-4 bg-warning/5 rounded-lg border border-warning/20">
-                  <div className="flex items-center gap-2 mb-2">
-                    <AlertTriangle className="h-5 w-5 text-warning" />
-                    <p className="sapasafe-text-sm font-medium text-warning">
-                      Early Withdrawal Available
-                    </p>
-                  </div>
-                  <p className="sapasafe-text-xs text-muted-foreground">
-                    You can withdraw early, but this will incur a 10% penalty on your locked amount.
-                  </p>
-                </div>
+              )}
+              
+              {canWithdrawEarly && (
                 <Button 
                   onClick={() => setShowEarlyWithdrawConfirm(true)}
+                  variant="destructive"
+                  className="w-full"
                   disabled={isWithdrawing}
-                  className="w-full border-error/20 text-error hover:bg-error/5"
                 >
                   <AlertTriangle className="mr-2 h-4 w-4" />
-                  Early Withdrawal (with penalty)
+                  Early Withdrawal (10% Penalty)
                 </Button>
-              </div>
-            ) : (
-              <div className="text-center py-6">
-                <Clock className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-                <p className="sapasafe-heading-4 text-muted-foreground mb-2">
-                  Vault is Locked
-                </p>
-                <p className="sapasafe-text text-muted-foreground">
-                  Your vault is still in the lock period. Wait for the lock period to end before you can withdraw your funds.
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-                {/* Vault Info Card */}
-        <Card className="sapasafe-card">
-          <CardHeader>
-            <CardTitle className="sapasafe-heading-3">Vault Information</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-3">
-                <div>
-                  <p className="sapasafe-text-sm text-muted-foreground">Vault Address</p>
-                  <p className="sapasafe-text font-mono bg-muted p-2 rounded">
-                    {vaultAddress}
-                  </p>
-                </div>
-                <div>
-                  <p className="sapasafe-text-sm text-muted-foreground">Current Status</p>
-                  <Badge className={getStatusColor(Boolean(vault.isUnlocked))}>
-                    {getStatusIcon(Boolean(vault.isUnlocked))}
-                    {getStatusText(Boolean(vault.isUnlocked))}
-                  </Badge>
-                </div>
-              </div>
-              <div className="space-y-3">
-                <div>
-                  <p className="sapasafe-text-sm text-muted-foreground">Can Withdraw</p>
-                  <Badge className={vault.canWithdraw ? "sapasafe-status-success" : "sapasafe-status-info"}>
-                    {vault.canWithdraw ? "Yes" : "No"}
-                  </Badge>
-                </div>
-                <div>
-                  <p className="sapasafe-text-sm text-muted-foreground">Early Withdrawal</p>
-                  <Badge className={vault.canWithdrawEarly ? "sapasafe-status-warning" : "sapasafe-status-info"}>
-                    {vault.canWithdrawEarly ? "Available" : "Not Available"}
-                  </Badge>
-                </div>
-              </div>
-            </div>
-            
-            {typeof vault.vaultStatusString === 'string' && vault.vaultStatusString !== 'Unknown' && (
-              <div className="p-3 bg-muted/50 rounded-lg">
-                <p className="sapasafe-text-sm text-muted-foreground">Status Details</p>
-                <p className="sapasafe-text">
-                  {vault.vaultStatusString}
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Early Withdrawal Confirmation Modal */}
-      {showEarlyWithdrawConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <Card className="sapasafe-card max-w-md mx-4">
-            <CardHeader>
-              <CardTitle className="sapasafe-heading-3 text-error">
-                Confirm Early Withdrawal
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="sapasafe-text">
-                Early withdrawal will incur a 10% penalty. Are you sure you want to proceed?
-              </p>
-              <div className="flex gap-2">
-                <Button 
-                  onClick={() => setShowEarlyWithdrawConfirm(false)}
-                  variant="outline"
-                  className="flex-1"
-                >
-                  Cancel
-                </Button>
-                <Button 
-                  onClick={handleEarlyWithdraw}
-                  disabled={isWithdrawing}
-                  className="flex-1 border-error/20 text-error hover:bg-error/5"
-                >
-                  {isWithdrawing ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <AlertTriangle className="mr-2 h-4 w-4" />
-                  )}
-                  {isWithdrawing ? 'Processing...' : 'Confirm'}
-                </Button>
-              </div>
+              )}
             </CardContent>
           </Card>
         </div>
-      )}
+
+        {/* Payment History */}
+        {paymentSummary && (
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <History className="h-5 w-5" />
+                Payment Summary
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-gray-500">Total Penalties</Label>
+                  <p className="text-lg font-semibold text-red-600">
+                    {paymentSummary.totalPenaltiesPaid ? (Number(paymentSummary.totalPenaltiesPaid) / 1e18).toFixed(2) : '0'} {tokenSymbol}
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-gray-500">Missed Payments</Label>
+                  <p className="text-lg font-semibold">
+                    {paymentSummary.missedPaymentsCount || 0}
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-gray-500">Next Payment Due</Label>
+                  <p className="text-sm">
+                    {nextPaymentDueDate ? new Date(Number(nextPaymentDueDate) * 1000).toLocaleDateString() : 'N/A'}
+                  </p>
+                </div>
+              </div>
+              
+              {paymentSummary.missedPaymentsCount > 0 && (
+                <div className="mt-4 space-y-2">
+                  <Button 
+                    onClick={handleProcessMissedPayment}
+                    variant="outline"
+                    size="sm"
+                  >
+                    Process Latest Missed Payment
+                  </Button>
+                  <Button 
+                    onClick={handleProcessAllMissedPayments}
+                    variant="outline"
+                    size="sm"
+                  >
+                    Process All Missed Payments
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Monthly Payment Modal */}
+        {showMonthlyPaymentModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <Card className="w-full max-w-md">
+              <CardHeader>
+                <CardTitle>Make Monthly Payment</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-gray-600">
+                  You're about to make a payment for month {currentMonth}. 
+                  Amount: {vaultInfo.monthlyAmount ? (Number(vaultInfo.monthlyAmount) / 1e18).toFixed(2) : '0'} {tokenSymbol}
+                </p>
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={handleMonthlyPayment}
+                    className="flex-1"
+                  >
+                    Confirm Payment
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    onClick={() => setShowMonthlyPaymentModal(false)}
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Early Withdrawal Confirmation Modal */}
+        {showEarlyWithdrawConfirm && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <Card className="w-full max-w-md">
+              <CardHeader>
+                <CardTitle className="text-red-600">Early Withdrawal Warning</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <AlertTriangle className="h-5 w-5 text-red-600 mb-2" />
+                  <p className="text-sm text-red-800">
+                    Early withdrawal will incur a 10% penalty on your total saved amount. 
+                    This action cannot be undone.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-sm">
+                    <strong>Current Balance:</strong> {vaultInfo.currentBalance ? (Number(vaultInfo.currentBalance) / 1e18).toFixed(2) : '0'} {tokenSymbol}
+                  </p>
+                  <p className="text-sm text-red-600">
+                    <strong>Penalty (10%):</strong> {vaultInfo.currentBalance ? (Number(vaultInfo.currentBalance) * 0.1 / 1e18).toFixed(2) : '0'} {tokenSymbol}
+                  </p>
+                  <p className="text-sm">
+                    <strong>You'll Receive:</strong> {vaultInfo.currentBalance ? (Number(vaultInfo.currentBalance) * 0.9 / 1e18).toFixed(2) : '0'} {tokenSymbol}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={handleEarlyWithdraw}
+                    variant="destructive"
+                    className="flex-1"
+                    disabled={isWithdrawing}
+                  >
+                    {isWithdrawing ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      'Confirm Early Withdrawal'
+                    )}
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    onClick={() => setShowEarlyWithdrawConfirm(false)}
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
